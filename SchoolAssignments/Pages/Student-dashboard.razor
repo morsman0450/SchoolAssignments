@@ -1,0 +1,37 @@
+﻿@page "/student-dashboard"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+
+@attribute [Authorize(Roles = "Student")]
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Studentský Dashboard</PageTitle>
+<p>Přihlášen: @(user?.Identity?.IsAuthenticated), Role: @(user?.FindFirst(ClaimTypes.Role)?.Value ?? "není")</p>
+
+lalalalalla
+lalalalal
+
+@code {
+    string debug = "";
+    private ClaimsPrincipal? user;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        user = authState.User;
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+       
+            
+            debug = $"Přihlášen: {user.Identity?.IsAuthenticated}, Role: {user.FindFirst(ClaimTypes.Role)?.Value}";
+        }
+    
+    }
+
+  
+}

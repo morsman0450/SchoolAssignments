@@ -1,0 +1,512 @@
+﻿@page "/user-detail/{Id:int}"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@inject UserService UserService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+
+@attribute [Authorize]
+
+<h3>Detail uživatele</h3>
+
+<div class="container">
+    @if (isLoading)
+    {
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Načítání...</span>
+            </div>
+        </div>
+    }
+    else if (user == null)
+    {
+        <div class="alert alert-danger" role="alert">
+            <h4 class="alert-heading">Uživatel nenalezen</h4>
+            <p>Uživatel s ID @Id nebyl nalezen.</p>
+            <hr>
+            <p class="mb-0">
+                <button class="btn btn-primary" @onclick="GoBack">Zpět na seznam</button>
+            </p>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            <div class="col-md-8">
+                <!-- Zobrazit informace o uživateli -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Informace o uživateli</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>ID:</strong> @user.Id</p>
+                                <p><strong>Uživatelské jméno:</strong> @user.Username</p>
+                                <p><strong>Email:</strong> @user.Email</p>
+                                <p><strong>First Name:</strong> @user.FirstName</p>
+                                <p><strong>Last Name:</strong> @user.LastName</p>
+                                <p><strong>Email:</strong> @user.Email</p>                            </div>
+                            <div class="col-md-6">
+                                @if (user.LastLoginAt.HasValue)
+                                {
+                                    <p><strong>Poslední přihlášení:</strong> @user.LastLoginAt?.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Akce s uživatelem -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Akce</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-primary" @onclick="ShowEditModal">
+                                <i class="fas fa-edit"></i> Upravit
+                            </button>
+                            <button class="btn btn-warning" @onclick="ShowPasswordModal">
+                                <i class="fas fa-key"></i> Změnit heslo
+                            </button>
+                            <button class="btn btn-secondary" @onclick="GoBack">
+                                <i class="fas fa-arrow-left"></i> Zpět
+                            </button>
+                            <button class="btn btn-danger" @onclick="ShowDeleteModal">
+                                <i class="fas fa-trash"></i> Smazat
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar s dodatečnými informacemi -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Statistiky</h5>
+                    </div>
+                    <div class="card-body">
+                        <p><strong>Aktivní úkoly:</strong> @activeAssignments</p>
+                        <p><strong>Dokončené úkoly:</strong> @completedAssignments</p>
+                        <p><strong>Celkový počet úkolů:</strong> @totalAssignments</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Modal pro úpravu -->
+@if (showEditModal)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Upravit uživatele</h5>
+                    <button type="button" class="btn-close" @onclick="CloseEditModal" aria-label="Zavřít"></button>
+                </div>
+                <div class="modal-body">
+                    @if (saveMessage != null)
+                    {
+                        <div class="alert @(saveSuccess ? "alert-success" : "alert-danger")" role="alert">
+                            @saveMessage
+                        </div>
+                    }
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Uživatelské jméno</label>
+                        <input type="text" id="username" class="form-control" @bind="editModel.Username" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" id="email" class="form-control" @bind="editModel.Email" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="firstName" class="form-label">First Name</label>
+                        <input type="text" id="firstName" class="form-control" @bind="editModel.FirstName" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="lastName" class="form-label">Last Name</label>
+                        <input type="text" id="LastName" class="form-control" @bind="editModel.LastName" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseEditModal">Zrušit</button>
+                    <button class="btn btn-primary" @onclick="SaveEdit" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        }
+                        Uložit
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal pro změnu hesla -->
+@if (showPasswordModal)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Změnit heslo</h5>
+                    <button type="button" class="btn-close" @onclick="ClosePasswordModal" aria-label="Zavřít"></button>
+                </div>
+                <div class="modal-body">
+                    @if (passwordMessage != null)
+                    {
+                        <div class="alert @(passwordSuccess ? "alert-success" : "alert-danger")" role="alert">
+                            @passwordMessage
+                        </div>
+                    }
+                    <div class="mb-3">
+                        <label for="currentPassword" class="form-label">Stávající heslo</label>
+                        <input type="password" id="currentPassword" class="form-control" @bind="currentPassword" placeholder="Zadejte aktuální heslo" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="newPassword" class="form-label">Nové heslo</label>
+                        <input type="password" id="newPassword" class="form-control" @bind="newPassword" placeholder="Zadejte nové heslo" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirmPassword" class="form-label">Potvrdit heslo</label>
+                        <input type="password" id="confirmPassword" class="form-control" @bind="confirmPassword" placeholder="Zadejte heslo znovu" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(passwordValidationMessage))
+                    {
+                        <div class="alert alert-warning" role="alert">
+                            @passwordValidationMessage
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="ClosePasswordModal">Zrušit</button>
+                    <button class="btn btn-warning" @onclick="ChangePassword" disabled="@isChangingPassword">
+                        @if (isChangingPassword)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        }
+                        Změnit heslo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal pro potvrzení smazání -->
+@if (showDeleteModal)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Potvrdit smazání</h5>
+                    <button type="button" class="btn-close" @onclick="CloseDeleteModal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Opravdu chcete smazat uživatele <strong>@user?.Username</strong>?
+                    Tato akce je nevratná.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseDeleteModal">Zrušit</button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmDelete">
+                        Smazat
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private User? user;
+    private bool isLoading = true;
+    private int activeAssignments = 0;
+    private int completedAssignments = 0;
+    private int totalAssignments = 0;
+    private User editModel = new();
+    private bool isSaving = false;
+    private string? saveMessage;
+    private bool saveSuccess = false;
+    private bool showEditModal = false;
+    private bool showDeleteModal = false;
+
+    // Proměnné pro změnu hesla
+    private bool showPasswordModal = false;
+    private string newPassword = "";
+    private string confirmPassword = "";
+    private bool isChangingPassword = false;
+    private string? passwordMessage;
+    private bool passwordSuccess = false;
+    private string? passwordValidationMessage;
+    private string currentPassword = ""; // Pro případné ověření aktuálního hesla, pokud je potřeba
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var currentUser = authState.User;
+
+        if (currentUser.Identity is not { IsAuthenticated: true })
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        var currentUserId = int.Parse(currentUser.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var currentUserRole = currentUser.FindFirst(ClaimTypes.Role)?.Value ?? "";
+
+        // ✅ Pokud není admin a není to jeho vlastní profil → přesměrování
+        if (currentUserId != Id && currentUserRole != "Admin")
+        {
+            Navigation.NavigateTo("/access-denied");
+            return;
+        }
+
+        // ✅ Jinak můžeš načíst uživatele
+        user = await UserService.GetUserByIdAsync(Id);
+        await LoadUserData();
+    }
+
+    private void ShowEditModal()
+    {
+        PrepareEdit();
+        saveMessage = null;
+        showEditModal = true;
+    }
+
+    private void CloseEditModal()
+    {
+        showEditModal = false;
+        saveMessage = null;
+    }
+
+    private void ShowPasswordModal()
+    {
+        currentPassword = "";
+        newPassword = "";
+        confirmPassword = "";
+        passwordMessage = null;
+        passwordValidationMessage = null;
+        showPasswordModal = true;
+    }
+
+    private void ClosePasswordModal()
+    {
+        showPasswordModal = false;
+        currentPassword = "";
+        newPassword = "";
+        confirmPassword = "";
+        passwordMessage = null;
+        passwordValidationMessage = null;
+    }
+
+
+    private void ShowDeleteModal()
+    {
+        showDeleteModal = true;
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteModal = false;
+    }
+
+    private void PrepareEdit()
+    {
+        if (user != null)
+        {
+            editModel = new User
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                Role = user.Role
+            };
+        }
+    }
+
+    private async Task SaveEdit()
+    {
+        try
+        {
+            isSaving = true;
+            saveMessage = null;
+            StateHasChanged();
+
+            // Aktualizace uživatele v databázi
+            var updatedUser = await UserService.UpdateUserAsync(editModel);
+
+            if (updatedUser != null)
+            {
+                // Aktualizace lokálních dat
+                user = updatedUser;
+                saveMessage = "Uživatel byl úspěšně aktualizován.";
+                saveSuccess = true;
+
+                // Zavřít modal po úspěšném uložení
+                await Task.Delay(1500); // Krátká pauza pro zobrazení zprávy
+                CloseEditModal();
+            }
+            else
+            {
+                saveMessage = "Chyba při ukládání uživatele.";
+                saveSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            saveMessage = $"Chyba při ukládání: {ex.Message}";
+            saveSuccess = false;
+            Console.WriteLine($"Chyba při ukládání: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ChangePassword()
+    {
+        try
+        {
+            // Validace vstupů
+            if (user == null)
+            {
+                passwordMessage = "Uživatel není načten.";
+                passwordSuccess = false;
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(currentPassword) ||
+                string.IsNullOrWhiteSpace(newPassword) ||
+                string.IsNullOrWhiteSpace(confirmPassword))
+            {
+                passwordValidationMessage = "Všechna pole musí být vyplněna.";
+                return;
+            }
+
+            if (newPassword != confirmPassword)
+            {
+                passwordValidationMessage = "Nové heslo a potvrzení se neshodují.";
+                return;
+            }
+
+            if (newPassword.Length < 6)
+            {
+                passwordValidationMessage = "Heslo musí mít alespoň 6 znaků.";
+                return;
+            }
+
+            passwordValidationMessage = null;
+            isChangingPassword = true;
+            passwordMessage = null;
+            StateHasChanged();
+
+            // Volání služby pro změnu hesla (včetně ověření aktuálního hesla)
+            var updatedUser = await UserService.ChangePassword(user, newPassword, currentPassword);
+
+            if (updatedUser != null)
+            {
+                passwordMessage = "Heslo bylo úspěšně změněno.";
+                passwordSuccess = true;
+
+                await Task.Delay(1500);
+                ClosePasswordModal();
+            }
+            else
+            {
+                passwordMessage = "Stávající heslo je nesprávné nebo nastala jiná chyba.";
+                passwordSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            passwordMessage = $"Chyba při změně hesla: {ex.Message}";
+            passwordSuccess = false;
+            Console.WriteLine($"Chyba při změně hesla: {ex.Message}");
+        }
+        finally
+        {
+            isChangingPassword = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadUserData()
+    {
+        try
+        {
+            isLoading = true;
+            user = await UserService.GetUserByIdAsync(Id);
+
+            if (user != null)
+            {
+                await LoadUserStatistics();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Chyba při načítání uživatele: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadUserStatistics()
+    {
+        // Dočasné testovací hodnoty
+        activeAssignments = 5;
+        completedAssignments = 12;
+        totalAssignments = 17;
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/users");
+    }
+
+    private async Task ConfirmDelete()
+    {
+        try
+        {
+            CloseDeleteModal();
+            Navigation.NavigateTo("/users");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Chyba při mazání uživatele: {ex.Message}");
+        }
+    }
+
+    private string GetRoleBadgeClass(string role)
+    {
+        return role.ToLower() switch
+        {
+            "admin" => "danger",
+            "teacher" => "primary",
+            "student" => "success",
+            _ => "secondary"
+        };
+    }
+}

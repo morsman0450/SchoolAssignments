@@ -1,0 +1,17 @@
+﻿@page "/teacher-dashboard"
+@attribute [Authorize(Roles = "Teacher")]
+<h3>Teacher_dashboard</h3>
+<!-- Teacher Dashboard -->
+<div class="card mb-4">
+    <div class="card-header">Vaše aktivity</div>
+    <ul class="list-group list-group-flush">
+        <li class="list-group-item">Zadaných úkolů: 14</li>
+        <li class="list-group-item">Hodnocených studentů: 112</li>
+        <li class="list-group-item">Otevřené úkoly ke kontrole: 8</li>
+    </ul>
+</div>
+<a href="/teacher/assignments" class="btn btn-primary">Přejít na správu aktivit</a>
+
+@code {
+
+}

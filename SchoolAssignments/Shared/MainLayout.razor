@@ -1,0 +1,64 @@
+﻿@using System.Security.Claims
+@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+@inject CustomAuthenticationStateProvider CustomAuthProvider
+
+<PageTitle>SchoolAssignments</PageTitle>
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+    <main>
+        <!-- ✅ TOP BAR s dropdownem -->
+        <div class="top-bar d-flex justify-content-between align-items-center px-4 py-2 border-bottom bg-light">
+            <a href="/" class="text-dark fw-bold fs-5 text-decoration-none">SchoolAssignments</a>
+
+            <AuthorizeView>
+                <Authorized Context="authContext">
+                    @{
+                        var user = authContext.User;
+                        var username = user.Identity?.Name ?? "neznámý";
+                        var role = user.FindFirst(ClaimTypes.Role)?.Value ?? "neznámá";
+                        var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                    }
+
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="userDropdown"
+                                data-bs-toggle="dropdown" aria-expanded="false">
+                            <strong>@username</strong> (@role)
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li>
+                                <NavLink class="dropdown-item" href=@($"/user-detail/{userId}")>
+                                    Můj profil
+                                </NavLink>
+                            </li>
+                            <li><hr class="dropdown-divider" /></li>
+                            <li>
+                                <button class="dropdown-item text-danger" @onclick="Logout">Odhlásit</button>
+                            </li>
+                        </ul>
+                    </div>
+                </Authorized>
+
+                <NotAuthorized>
+                    <NavLink class="btn btn-outline-primary btn-sm" href="login">Přihlásit</NavLink>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+
+        <!-- OBSAH STRÁNKY -->
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    private async Task Logout()
+    {
+        await CustomAuthProvider.LogoutAsync();
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+}
