@@ -1,0 +1,207 @@
+﻿@page "/take-test/{ActivityId:int}"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@using System.Linq.Expressions
+@inject IActivityService ActivityService
+@inject ISubmissionService SubmissionService
+@inject NavigationManager Navigation
+
+<h3>Vyplň test</h3>
+
+@if (isLoading)
+{
+    <p>Načítám test...</p>
+}
+else if (loadError)
+{
+    <p class="text-danger">Nepodařilo se načíst test.</p>
+}
+else
+{
+    <h4>@activity.Title</h4>
+    <p>@activity.Description</p>
+
+    <EditForm Model="formModel" OnValidSubmit="HandleSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        @foreach (var question in questions)
+        {
+            <div class="mb-4">
+                <label><strong>@question.Text</strong></label>
+                <div>
+                    @if (question.Type == QuestionType.SingleChoice)
+                    {
+                        @foreach (var option in question.Options)
+                        {
+                            <div class="form-check">
+                                <input type="radio"
+                                       class="form-check-input"
+                                       name="question_@question.Id"
+                                       value="@option.Id"
+                                       id="q@question.Id-option@option.Id"
+                                       checked="@(GetQuestionAnswer(question.Id).SelectedOptionId == option.Id)"
+                                       @onchange="@(e => SetSingleAnswer(question.Id, option.Id))" />
+                                <label class="form-check-label" for="q@question.Id-option@option.Id">@option.Text</label>
+                            </div>
+                        }
+                    }
+                    else if (question.Type == QuestionType.MultipleChoice)
+                    {
+                        foreach (var option in question.Options)
+                        {
+                            var optionAnswer = GetOptionAnswer(question.Id, option.Id);
+                            <div class="form-check">
+                                <InputCheckbox class="form-check-input"
+                                               id="q@question.Id-option@option.Id"
+                                               Value="optionAnswer.IsSelected"
+                                               ValueChanged="value => SetMultipleAnswer(question.Id, option.Id, value)"
+                                               ValueExpression="() => optionAnswer.IsSelected" />
+                                <label class="form-check-label" for="q@question.Id-option@option.Id">@option.Text</label>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        }
+
+        <button type="submit" class="btn btn-primary">Odevzdat test</button>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public int ActivityId { get; set; }
+
+    private Activity activity = null!;
+    private List<Question> questions = new();
+    private TestFormModel formModel = new();
+
+    private bool isLoading = true;
+    private bool loadError = false;
+
+    // Wrapper třídy pro binding
+    public class TestFormModel
+    {
+        public Dictionary<int, QuestionAnswer> Questions { get; set; } = new();
+    }
+
+    public class QuestionAnswer
+    {
+        public int? SelectedOptionId { get; set; }
+        public Dictionary<int, OptionAnswer> Options { get; set; } = new();
+    }
+
+    public class OptionAnswer
+    {
+        public bool IsSelected { get; set; }
+    }
+
+    private QuestionAnswer GetQuestionAnswer(int questionId)
+    {
+        if (!formModel.Questions.ContainsKey(questionId))
+        {
+            formModel.Questions[questionId] = new QuestionAnswer();
+        }
+        return formModel.Questions[questionId];
+    }
+
+    private OptionAnswer GetOptionAnswer(int questionId, int optionId)
+    {
+        var questionAnswer = GetQuestionAnswer(questionId);
+        if (!questionAnswer.Options.ContainsKey(optionId))
+        {
+            questionAnswer.Options[optionId] = new OptionAnswer();
+        }
+        return questionAnswer.Options[optionId];
+    }
+
+    private void SetSingleAnswer(int questionId, int optionId)
+    {
+        GetQuestionAnswer(questionId).SelectedOptionId = optionId;
+        StateHasChanged(); // Důležité pro re-render
+    }
+
+    private void SetMultipleAnswer(int questionId, int optionId, bool value)
+    {
+        GetOptionAnswer(questionId, optionId).IsSelected = value;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            activity = await ActivityService.GetActivityWithQuestionsAsync(ActivityId);
+            questions = activity.Questions.ToList();
+
+            // Inicializace form modelu
+            foreach (var question in questions)
+            {
+                var questionAnswer = GetQuestionAnswer(question.Id);
+
+                if (question.Type == QuestionType.MultipleChoice)
+                {
+                    foreach (var option in question.Options)
+                    {
+                        GetOptionAnswer(question.Id, option.Id);
+                    }
+                }
+            }
+        }
+        catch
+        {
+            loadError = true;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        var submission = new Submission
+        {
+            ActivityId = ActivityId,
+            SubmittedAt = DateTime.UtcNow,
+            StudentId = 1 // TODO: nahradit skutečným přihlášeným uživatelem
+        };
+
+        var studentAnswerList = new List<StudentAnswer>();
+
+        foreach (var question in questions)
+        {
+            if (question.Type == QuestionType.SingleChoice)
+            {
+                var selectedOptionId = GetQuestionAnswer(question.Id).SelectedOptionId;
+                if (selectedOptionId.HasValue)
+                {
+                    studentAnswerList.Add(new StudentAnswer
+                    {
+                        QuestionId = question.Id,
+                        AnswerOptionId = selectedOptionId.Value,
+                    });
+                }
+            }
+            else if (question.Type == QuestionType.MultipleChoice)
+            {
+                foreach (var option in question.Options)
+                {
+                    var optionAnswer = GetOptionAnswer(question.Id, option.Id);
+                    if (optionAnswer.IsSelected)
+                    {
+                        studentAnswerList.Add(new StudentAnswer
+                        {
+                            QuestionId = question.Id,
+                            AnswerOptionId = option.Id,
+                        });
+                    }
+                }
+            }
+        }
+
+        await SubmissionService.CreateSubmissionAsync(submission, studentAnswerList);
+
+        Navigation.NavigateTo($"/submission-result/{submission.Id}");
+    }
+}

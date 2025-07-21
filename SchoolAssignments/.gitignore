@@ -10,6 +10,8 @@
 #my things to ignore
 appsettings.json
 appsettings.Development.json
+Migrations/
+
 # User-specific files
 *.suo
 *.user

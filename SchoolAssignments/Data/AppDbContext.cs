@@ -16,6 +16,11 @@ namespace SchoolAssignments.Data
         public DbSet<Submission> Submissions { get; set; }
         public DbSet<SystemLog> SystemLogs { get; set; }
         public DbSet<AutomationStatus> AutomationStatuses { get; set; }
+        public DbSet<Question> Questions { get; set; }
+        public DbSet<AnswerOption> AnswerOptions { get; set; }
+        public DbSet<StudentAnswer> StudentAnswers { get; set; }
+
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -128,6 +133,55 @@ namespace SchoolAssignments.Data
                 entity.Property(e => e.LastError).HasColumnType("text");
                 entity.HasIndex(e => e.ServiceName).IsUnique();
             });
+            // Question konfigurace
+            modelBuilder.Entity<Question>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Text).HasMaxLength(1000).IsRequired();
+
+                entity.HasOne(e => e.Activity)
+                      .WithMany(a => a.Questions)
+                      .HasForeignKey(e => e.ActivityId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // AnswerOption konfigurace
+            modelBuilder.Entity<AnswerOption>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Text).HasMaxLength(1000).IsRequired();
+                entity.Property(e => e.IsCorrect).IsRequired();
+
+                entity.HasOne(e => e.Question)
+                      .WithMany(q => q.Options)
+                      .HasForeignKey(e => e.QuestionId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+            // StudentAnswer konfigurace
+            modelBuilder.Entity<StudentAnswer>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+
+                // Vztah StudentAnswer -> Submission (mnoho StudentAnswer na jednu Submission)
+                entity.HasOne(e => e.Submission)
+                      .WithMany(s => s.StudentAnswers)
+                      .HasForeignKey(e => e.SubmissionId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // Vztah StudentAnswer -> Question (mnoho StudentAnswer na jednu Question)
+                entity.HasOne(e => e.Question)
+                      .WithMany()
+                      .HasForeignKey(e => e.QuestionId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                // Vztah StudentAnswer -> AnswerOption (jedna odpověď je jedna možnost)
+                entity.HasOne(e => e.AnswerOption)
+                      .WithMany()
+                      .HasForeignKey(e => e.AnswerOptionId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+
 
             // Seed data pro základní role
             SeedData(modelBuilder);

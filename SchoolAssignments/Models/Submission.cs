@@ -19,6 +19,8 @@
         // Navigační vlastnosti
         public Activity Activity { get; set; } = null!;
         public User Student { get; set; } = null!;
+        public ICollection<StudentAnswer> StudentAnswers { get; set; } = new List<StudentAnswer>();
+
     }
     public enum SubmissionStatus
     {

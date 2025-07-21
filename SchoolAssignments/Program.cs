@@ -16,14 +16,19 @@ builder.Services.AddSingleton<WeatherForecastService>();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddScoped<ISubmissionService, SubmissionService>();
 
 builder.Services.AddAuthorizationCore();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IActivityService, ActivityService>();
 builder.Services.AddScoped<CustomAuthenticationStateProvider>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<AuthenticationStateProvider>(provider =>
     provider.GetRequiredService<CustomAuthenticationStateProvider>());
 builder.Services.AddScoped<ProtectedSessionStorage>();
+
+
+
 
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
