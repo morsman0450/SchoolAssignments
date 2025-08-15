@@ -1,0 +1,66 @@
+﻿@page "/activity-detail/{ActivityId:int}"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@inject IActivityService ActivityService
+@inject NavigationManager Navigation
+
+<h3>Detail aktivity</h3>
+
+@if (activity == null)
+{
+    <p><em>Načítám...</em></p>
+}
+else
+{
+    <div class="card">
+        <div class="card-body">
+            <h4>@activity.Title</h4>
+            <p><strong>Popis:</strong> @activity.Description</p>
+            <p><strong>Třída:</strong> @activity.Class?.Name</p>
+            <p><strong>Typ:</strong> @activity.Type</p>
+            <p><strong>Maximální body:</strong> @activity.MaxPoints</p>
+            <p><strong>Termín odevzdání:</strong> @(activity.DueDate?.ToString("g") ?? "neuvedeno")</p>
+            <p><strong>Automatické hodnocení:</strong> @(activity.IsAutoGraded ? "Ano" : "Ne")</p>
+
+            @if (activity.Type == ActivityType.Test && activity.Questions != null)
+            {
+                <hr />
+                <h5>Otázky</h5>
+                @foreach (var question in activity.Questions)
+                {
+                    <div class="mb-3">
+                        <strong>@question.Text</strong> (@question.Type)
+                        <ul>
+                            @foreach (var option in question.Options)
+                            {
+                                <li>@option.Text @if(option.IsCorrect) {
+                                <strong>(správná odpověď)</strong>
+                            }
+            </li>
+                        }
+                    </ul>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<button class="btn btn-secondary mt-3" @onclick="GoBack">Zpět</button>
+}
+
+@code {
+    [Parameter]
+    public int ActivityId { get; set; }
+
+    private Activity? activity;
+
+    protected override async Task OnInitializedAsync()
+    {
+        activity = await ActivityService.GetActivityWithDetailsAsync(ActivityId);
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

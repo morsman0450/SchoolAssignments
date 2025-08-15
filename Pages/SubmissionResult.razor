@@ -1,0 +1,82 @@
+﻿@page "/submission-result/{SubmissionId:int}"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@inject ISubmissionService SubmissionService
+
+<h3>Výsledek testu</h3>
+
+@if (isLoading)
+{
+    <p>Načítám...</p>
+}
+else if (loadError)
+{
+    <p class="text-danger">Nepodařilo se načíst výsledek.</p>
+}
+else if (submission != null)
+{
+    <div class="card p-3">
+        <h4>@submission.Activity.Title</h4>
+        <p><strong>Datum odevzdání:</strong> @submission.SubmittedAt.ToString("dd.MM.yyyy HH:mm")</p>
+        <p><strong>Stav:</strong> @(submission.Status == SubmissionStatus.Graded ? "Ohodnoceno" : "Čeká na hodnocení")</p>
+
+        @if (submission.Points.HasValue)
+        {
+            <p><strong>Body:</strong> @submission.Points / @submission.Activity.MaxPoints</p>
+        }
+
+        @if (!string.IsNullOrEmpty(submission.Feedback))
+        {
+            <p><strong>Komentář učitele:</strong> @submission.Feedback</p>
+        }
+
+        <hr />
+
+        <h5>Odpovědi</h5>
+        @foreach (var question in submission.Activity.Questions)
+        {
+            <div class="mb-3">
+                <p><strong>@question.Text</strong></p>
+                <ul>
+                    @foreach (var option in question.Options)
+                    {
+                        var isSelected = submission.StudentAnswers.Any(sa => sa.AnswerOptionId == option.Id);
+                        var isCorrect = option.IsCorrect;
+
+                        <li style="color:@(isCorrect ? "green" : isSelected ? "red" : "black")">
+                            @(isSelected ? "✅ " : "❌ ") @option.Text
+                            @if (isCorrect && !isSelected)
+                            {
+                                <span class="text-success">(správná odpověď)</span>
+                            }
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int SubmissionId { get; set; }
+
+    private Submission? submission;
+    private bool isLoading = true;
+    private bool loadError = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            submission = await SubmissionService.GetSubmissionWithDetailsAsync(SubmissionId);
+        }
+        catch
+        {
+            loadError = true;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

@@ -1,0 +1,11 @@
+﻿@page "/"
+@namespace SchoolAssignments.Pages
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+@{
+    Layout = "_Layout";
+}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+<script src="js/monaco-init.js"></script>
+<component type="typeof(App)" render-mode="ServerPrerendered" />
+

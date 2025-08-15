@@ -1,0 +1,132 @@
+﻿@page "/login"
+
+@using SchoolAssignments.Models
+
+@using SchoolAssignments.Services
+
+@using SchoolAssignments.ViewModels
+
+@inject IAuthService AuthService
+
+
+@inject CustomAuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+<PageTitle>Přihlášení</PageTitle>
+
+<div class="container-fluid vh-100">
+    <div class="row h-100">
+        <div class="col-md-6 d-flex align-items-center justify-content-center bg-primary">
+            <div class="text-white text-center">
+                <h1 class="display-4 mb-4">Školní systém</h1>
+                <p class="lead">Přihlaste se pro přístup k aktivitám a hodnocení</p>
+            </div>
+        </div>
+        <div class="col-md-6 d-flex align-items-center justify-content-center">
+            <div class="card shadow-lg" style="width: 400px;">
+                <div class="card-header text-center">
+                    <h3>Přihlášení</h3>
+                </div>
+                <div class="card-body">
+                    <EditForm Model="loginModel" OnValidSubmit="HandleLogin">
+                        <DataAnnotationsValidator />
+
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                @errorMessage
+                            </div>
+                        }
+
+                        <div class="mb-3">
+                            <label class="form-label">Uživatelské jméno</label>
+                            <InputText @bind-Value="loginModel.Username" class="form-control" placeholder="Zadejte uživatelské jméno" />
+                            <ValidationMessage For="@(() => loginModel.Username)" class="text-danger" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Heslo</label>
+                            <InputText @bind-Value="loginModel.Password" type="password" class="form-control" placeholder="Zadejte heslo" />
+                            <ValidationMessage For="@(() => loginModel.Password)" class="text-danger" />
+                        </div>
+
+                        <div class="mb-3 form-check">
+                            <InputCheckbox @bind-Value="loginModel.RememberMe" class="form-check-input" id="rememberMe" />
+                            <label class="form-check-label" for="rememberMe">
+                                Zapamatovat si mě
+                            </label>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary" disabled="@isLoading">
+                                @if (isLoading)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                }
+                                Přihlásit se
+                            </button>
+                        </div>
+                    </EditForm>
+
+                    <hr>
+                    <div class="text-center">
+                        <a href="/register" class="btn btn-link">Nemáte účet? Zaregistrujte se</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private LoginModel loginModel = new();
+    private string errorMessage = string.Empty;
+    private bool isLoading = false;
+
+    private async Task HandleLogin()
+    {
+        isLoading = true;
+        errorMessage = string.Empty;
+
+        try
+        {
+            var user = await AuthService.LoginAsync(loginModel.Username, loginModel.Password);
+
+            if (user != null)
+            {
+                await AuthStateProvider.LoginAsync(user);
+
+                // Přesměrování podle role
+                switch (user.Role)
+                {
+                    case UserRole.Student:
+                        Navigation.NavigateTo("/student-dashboard", true);
+
+                        break;
+                    case UserRole.Teacher:
+                        Navigation.NavigateTo("/teacher-dashboard", true);
+                        break;
+                    case UserRole.Admin:
+                        Navigation.NavigateTo("/admin-dashboard", true);
+                        break;
+                    default:
+                        Navigation.NavigateTo("/");
+                        break;
+                }
+            }
+            else
+            {
+                errorMessage = "Neplatné uživatelské jméno nebo heslo.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Došlo k chybě při přihlašování. Zkuste to znovu.";
+            await JSRuntime.InvokeVoidAsync("console.error", ex.Message);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

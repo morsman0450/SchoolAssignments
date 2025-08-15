@@ -1,0 +1,142 @@
+﻿@page "/create-activity"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@inject IActivityService ActivityService
+@inject NavigationManager Navigation
+
+<h3>Vytvořit aktivitu</h3>
+
+<EditForm Model="activityModel" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3">
+        <label for="title" class="form-label">Název aktivity</label>
+        <InputText id="title" class="form-control" @bind-Value="activityModel.Title" />
+    </div>
+
+    <div class="mb-3">
+        <label for="description" class="form-label">Popis</label>
+        <InputTextArea id="description" class="form-control" @bind-Value="activityModel.Description" />
+    </div>
+
+    <div class="mb-3">
+        <label for="classId" class="form-label">Třída</label>
+        <InputNumber id="classId" class="form-control" @bind-Value="activityModel.ClassId" />
+    </div>
+
+    <div class="mb-3">
+        <label for="type" class="form-label">Typ aktivity</label>
+        <InputSelect id="type" class="form-select" @bind-Value="activityModel.Type">
+            @foreach (var type in Enum.GetValues<ActivityType>())
+            {
+                <option value="@type">@type</option>
+            }
+        </InputSelect>
+    </div>
+
+    <div class="mb-3">
+        <label for="maxPoints" class="form-label">Maximální počet bodů</label>
+        <InputNumber id="maxPoints" class="form-control" @bind-Value="activityModel.MaxPoints" />
+    </div>
+    <div class="mb-3">
+        <label for="maxAttempts" class="form-label">Maximální počet pokusů (0 = neomezeně)</label>
+        <InputNumber id="maxAttempts" class="form-control" @bind-Value="activityModel.MaxAttempts" />
+    </div>
+
+    <div class="mb-3">
+        <label for="dueDate" class="form-label">Termín odevzdání</label>
+        <InputDate id="dueDate" class="form-control" @bind-Value="activityModel.DueDate" />
+    </div>
+
+    <div class="form-check mb-3">
+        <InputCheckbox class="form-check-input" id="autoGraded" @bind-Value="activityModel.IsAutoGraded" />
+        <label class="form-check-label" for="autoGraded">Automatické hodnocení</label>
+    </div>
+
+    @if (activityModel.Type == ActivityType.Test)
+    {
+        <hr />
+        <h5>Otázky k testu</h5>
+
+        @foreach (var question in questions)
+        {
+            <div class="mb-3 border rounded p-3">
+                <label>Otázka:</label>
+                <InputText class="form-control" @bind-Value="question.Text" />
+
+                <label class="mt-2">Typ otázky:</label>
+                <InputSelect class="form-select" @bind-Value="question.Type">
+                    @foreach (var qt in Enum.GetValues<QuestionType>())
+                    {
+                        <option value="@qt">@qt</option>
+                    }
+                </InputSelect>
+
+                <h6 class="mt-3">Možnosti odpovědi</h6>
+                @foreach (var option in question.Options)
+                {
+                    <div class="input-group mb-1">
+                        <input class="form-control" @bind="option.Text" />
+                        <span class="input-group-text">
+                            <input type="checkbox" @bind="option.IsCorrect" />
+                        </span>
+                    </div>
+                }
+
+                <button class="btn btn-sm btn-outline-secondary" type="button" @onclick="() => AddAnswerOption(question)">+ možnost</button>
+                <hr />
+            </div>
+        }
+
+        <button class="btn btn-outline-primary" type="button" @onclick="AddQuestion">+ Přidat otázku</button>
+    }
+
+    @if (activityModel.Type == ActivityType.Code)
+    {
+        <CodeActivityEditor Model="@codeModel" />
+    }
+
+    <button class="btn btn-primary mt-4" type="submit">Vytvořit aktivitu</button>
+</EditForm>
+
+@code {
+    private Activity activityModel = new()
+    {
+        CreatedAt = DateTime.UtcNow,
+        IsActive = true,
+        Type = ActivityType.Code // výchozí typ
+    };
+    private CodeActivityModel codeModel = new CodeActivityModel
+    {
+        Type = ActivityType.Code,
+        Language = "csharp",
+        InitialCode = "// Sem napište svůj kód..."
+    };
+
+    private List<Question> questions = new();
+
+    private async Task HandleValidSubmit()
+    {
+        var activityId = await ActivityService.CreateActivityWithQuestionsAsync(activityModel, questions);
+        Navigation.NavigateTo($"/activity-detail/{activityId}");
+    }
+
+    private void AddQuestion()
+    {
+        questions.Add(new Question
+        {
+            Text = "",
+            Type = QuestionType.SingleChoice,
+            Options = new List<AnswerOption>
+            {
+                new AnswerOption { Text = "", IsCorrect = false }
+            }
+        });
+    }
+
+    private void AddAnswerOption(Question question)
+    {
+        question.Options.Add(new AnswerOption { Text = "", IsCorrect = false });
+    }
+}

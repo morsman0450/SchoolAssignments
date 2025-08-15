@@ -1,0 +1,48 @@
+﻿@page "/students"
+@using Microsoft.EntityFrameworkCore
+@using SchoolAssignments.Data
+@using SchoolAssignments.Models
+@inject AppDbContext DbContext
+
+<h3>Seznam studentů</h3>
+
+@if (studentList == null)
+{
+    <p><em>Načítání...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Jméno</th>
+                <th>Email</th>
+                <th>Třídy</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var student in studentList)
+            {
+                <tr>
+                    <td>@student.FirstName @student.LastName</td>
+                    <td>@student.Email</td>
+                    <td>@student.StudentClasses.Count</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<User>? studentList;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Načtení studentů s jejich třídami
+        studentList = await DbContext.Users
+            .Where(u => u.Role == UserRole.Student)
+            .Include(u => u.StudentClasses)
+            .ThenInclude(cs => cs.Class)
+            .ToListAsync();
+    }
+}
