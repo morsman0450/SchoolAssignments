@@ -1,9 +1,11 @@
 ﻿namespace SchoolAssignments.Models
 {
-    public class CodeActivityModel : Activity
+    public class CodeActivityModel
     {
-        public string? InitialCode { get; set; }
-        public string? Language { get; set; }
+        public ActivityType Type { get; set; } = ActivityType.Code;
+        public string Language { get; set; } = "csharp";
+        public string InitialCode { get; set; } = "// Sem napište svůj kód...";
     }
+
 
 }

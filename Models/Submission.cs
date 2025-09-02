@@ -26,7 +26,8 @@
         public string? Code { get; set; }          // zdrojový kód
         public int? LanguageId { get; set; }       // Judge0 language id
         public string? StdInput { get; set; }      // stdin
-        public string? StdOutput { get; set; }     // stdout z Judge0
+        public string? StdOutput { get; set; } // stdout z Judge0
+        public string? CompileOutput { get; set; } // compile output z Judge0
         public string? Stderr { get; set; }        // stderr z Judge0
         public int? ExitCode { get; set; }         // návratový kód
 
@@ -34,6 +35,8 @@
         public Activity Activity { get; set; } = null!;
         public User Student { get; set; } = null!;
         public ICollection<StudentAnswer> StudentAnswers { get; set; } = new List<StudentAnswer>();
+        public ICollection<SubmissionFile> Files { get; set; } = new List<SubmissionFile>();
+
     }
 
     public enum SubmissionStatus
@@ -44,15 +47,4 @@
     }
 
 
-
-// ↓↓↓ Speciální třída pro Code aktivitu
-public class CodeSubmission : Submission
-    {
-        public string Code { get; set; } = string.Empty; // zdrojový kód
-        public int? LanguageId { get; set; }             // Judge0 language id
-        public string? StdInput { get; set; }           // stdin
-        public string? StdOutput { get; set; }          // stdout z Judge0
-        public string? Stderr { get; set; }             // stderr z Judge0
-        public int? ExitCode { get; set; }              // návratový kód
-    }
 }

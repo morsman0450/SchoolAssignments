@@ -1,0 +1,108 @@
+﻿@page "/class-detail/{ClassId:int}"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@inject IClassService ClassService
+@inject IActivityService ActivityService
+@inject NavigationManager Navigation
+
+<h3>Detail třídy</h3>
+
+@if (classModel == null)
+{
+    <p><em>Načítám...</em></p>
+}
+else
+{
+    <div class="mb-3">
+        <strong>Název:</strong> @classModel.Name
+    </div>
+    <div class="mb-3">
+        <strong>Předmět:</strong> @classModel.Subject
+    </div>
+    <div class="mb-3">
+        <strong>Počet studentů:</strong> @classModel.Students.Count
+    </div>
+
+    <h5>Studenti</h5>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Jméno</th>
+                <th>Username</th>
+                <th>Email</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var cs in classModel.Students)
+            {
+                <tr>
+                    <td>@cs.Student.FirstName @cs.Student.LastName</td>
+                    <td>@cs.Student.Username</td>
+                    <td>@cs.Student.Email</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <h5>Aktivity</h5>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Název</th>
+                <th>Typ</th>
+                <th>Max bodů</th>
+                <th>Termín</th>
+                <th>Akce</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var activity in classModel.Activities)
+            {
+                <tr>
+                    <td>@activity.Title</td>
+                    <td>@activity.Type</td>
+                    <td>@activity.MaxPoints</td>
+                    <td>@activity.DueDate?.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" @onclick="() => NavigateToActivity(activity.Id)">Detail</button>
+                        <button class="btn btn-sm btn-warning" @onclick="() => EditActivity(activity.Id)">Upravit</button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteActivity(activity.Id)">Smazat</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    [Parameter]
+    public int ClassId { get; set; }
+
+    private Class? classModel;
+
+    protected override async Task OnInitializedAsync()
+    {
+        classModel = await ClassService.GetClassByIdAsync(ClassId);
+    }
+
+    private void NavigateToActivity(int activityId)
+    {
+        Navigation.NavigateTo($"/activity-detail/{activityId}");
+    }
+
+    private void EditActivity(int activityId)
+    {
+        Navigation.NavigateTo($"/edit-activity/{activityId}");
+    }
+
+    private async Task DeleteActivity(int activityId)
+    {
+        var activity = await ActivityService.GetActivityWithDetailsAsync(activityId);
+        if (activity != null)
+        {
+            activity.IsActive = false;
+            //await ActivityService.UpdateActivityAsync(activity);
+            classModel = await ClassService.GetClassByIdAsync(ClassId); // refresh
+        }
+    }
+}

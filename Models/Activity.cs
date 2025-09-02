@@ -14,6 +14,9 @@
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        public int CreatedByUserId { get; set; }
+        public User CreatedByUser { get; set; } = null!;
+
         // ↓↓↓ Přidáno pro Code aktivitu
         public int? LanguageId { get; set; }        // Judge0 language_id (např. 51 = C#, 71 = Python)
         public string? InitialCode { get; set; }    // volitelné – šablona pro studenta

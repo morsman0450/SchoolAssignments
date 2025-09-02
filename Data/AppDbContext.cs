@@ -19,7 +19,8 @@ namespace SchoolAssignments.Data
         public DbSet<Question> Questions { get; set; }
         public DbSet<AnswerOption> AnswerOptions { get; set; }
         public DbSet<StudentAnswer> StudentAnswers { get; set; }
-        public DbSet<CodeSubmission> CodeSubmissions { get; set; }
+        public DbSet<SubmissionFile> SubmissionFiles { get; set; }
+
 
 
 
@@ -87,6 +88,12 @@ namespace SchoolAssignments.Data
                       .WithMany(e => e.Activities)
                       .HasForeignKey(e => e.ClassId)
                       .OnDelete(DeleteBehavior.Cascade);
+
+                // Vztah s učitelem (CreatedByUser)
+                entity.HasOne(e => e.CreatedByUser)
+                      .WithMany() // pokud nechceš kolekci "CreatedActivities" u User
+                      .HasForeignKey(e => e.CreatedByUserId)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             // Submission konfigurace

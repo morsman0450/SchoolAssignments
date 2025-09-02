@@ -1,0 +1,83 @@
+﻿@page "/activity-submissions/{ActivityId:int}"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@inject ISubmissionService SubmissionService
+@inject NavigationManager Navigation
+
+<h3>Odevzdání pro aktivitu</h3>
+
+@if (isLoading)
+{
+    <p><em>Načítám...</em></p>
+}
+else if (loadError)
+{
+    <p class="text-danger">Nepodařilo se načíst odevzdání.</p>
+}
+else if (submissions.Any())
+{
+    <h5>@submissions.First().Activity.Title</h5>
+    <p>@submissions.First().Activity.Description</p>
+
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Student</th>
+                <th>Odevzdáno</th>
+                <th>Body</th>
+                <th>Feedback</th>
+                <th>Akce</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var submission in submissions)
+            {
+                <tr>
+                    <td>@submission.Student.FirstName @submission.Student.LastName</td>
+                    <td>@submission.SubmittedAt.ToLocalTime()</td>
+                    <td>@(submission.Points?.ToString() ?? "-") / @submission.Activity.MaxPoints</td>
+                    <td>@submission.Feedback</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => ViewSubmission(submission.Id)">
+                            Zobrazit
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p>Žádná odevzdání pro tuto aktivitu.</p>
+}
+
+@code {
+    [Parameter]
+    public int ActivityId { get; set; }
+
+    private List<Submission> submissions = new();
+    private bool isLoading = true;
+    private bool loadError = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            submissions = await SubmissionService.GetSubmissionsByActivityAsync(ActivityId);
+        }
+        catch
+        {
+            loadError = true;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ViewSubmission(int submissionId)
+    {
+        Navigation.NavigateTo($"/submission-detail/{submissionId}");
+    }
+}

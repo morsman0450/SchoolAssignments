@@ -5,7 +5,8 @@
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
-
+<AuthorizeView Roles="Admin">
+  <Authorized Context="authContext">
 <PageTitle>Registrace</PageTitle>
 
 <div class="container mt-5">
@@ -86,14 +87,14 @@
                     </EditForm>
 
                     <hr>
-                    <div class="text-center">
-                        <a href="/login" class="btn btn-link">Již máte účet? Přihlaste se</a>
-                    </div>
+
                 </div>
             </div>
         </div>
     </div>
 </div>
+    </Authorized>
+</AuthorizeView>
 
 @code {
     private RegisterModel registerModel = new();

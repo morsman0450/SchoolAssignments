@@ -29,6 +29,14 @@ builder.Services.AddScoped<ProtectedSessionStorage>();
 builder.Services.AddServerSideBlazor()
     .AddCircuitOptions(options => { options.DetailedErrors = true; });
 builder.Services.AddHttpClient<IJudge0Service, Judge0Service>();
+builder.Services.AddScoped<IClassService, ClassService>();
+builder.Services.AddHttpClient<IJudge0Service, Judge0Service>((sp, client) =>
+{
+    var config = sp.GetRequiredService<IConfiguration>().GetSection("Judge0");
+    client.BaseAddress = new Uri(config["BaseUrl"]!);
+    client.DefaultRequestHeaders.Add("X-RapidAPI-Key", config["ApiKey"]);
+    client.DefaultRequestHeaders.Add("X-RapidAPI-Host", config["ApiHost"]);
+});
 
 
 

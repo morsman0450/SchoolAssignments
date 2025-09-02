@@ -1,0 +1,220 @@
+﻿@page "/edit-activity/{ActivityId:int}"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@using BlazorMonaco
+@using BlazorMonaco.Editor
+@inject IActivityService ActivityService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<h3>Upravit aktivitu</h3>
+
+@if (activityModel == null)
+{
+    <p><em>Načítám aktivitu...</em></p>
+}
+else
+{
+    <EditForm Model="activityModel" OnValidSubmit="HandleValidSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <!-- Název -->
+        <div class="mb-3">
+            <label class="form-label">Název aktivity</label>
+            <InputText class="form-control" @bind-Value="activityModel.Title" />
+        </div>
+
+        <!-- Popis -->
+        <div class="mb-3">
+            <label class="form-label">Popis</label>
+            <InputTextArea class="form-control" @bind-Value="activityModel.Description" />
+        </div>
+
+        <!-- Max body -->
+        <div class="mb-3">
+            <label class="form-label">Maximální počet bodů</label>
+            <InputNumber class="form-control" @bind-Value="activityModel.MaxPoints" />
+        </div>
+
+        <!-- Max pokusy -->
+        <div class="mb-3">
+            <label class="form-label">Maximální počet pokusů (0 = neomezeně)</label>
+            <InputNumber class="form-control" @bind-Value="activityModel.MaxAttempts" />
+        </div>
+
+        <!-- Termín -->
+        <div class="mb-3">
+            <label class="form-label">Termín odevzdání</label>
+            <InputDate class="form-control" @bind-Value="activityModel.DueDate" />
+        </div>
+
+        <!-- Automatické hodnocení -->
+        <div class="form-check mb-3">
+            <InputCheckbox class="form-check-input" @bind-Value="activityModel.IsAutoGraded" />
+            <label class="form-check-label">Automatické hodnocení</label>
+        </div>
+
+        <!-- Pokud je aktivita kódová -->
+        @if (activityModel.Type == ActivityType.Code)
+        {
+            <hr />
+            <div class="mb-3">
+                <label class="form-label">Jazyk kódu</label>
+                <InputSelect class="form-select" @bind-Value="SelectedLanguage">
+                    <option value="csharp">C#</option>
+                    <option value="python">Python</option>
+                    <option value="java">Java</option>
+                    <option value="javascript">JavaScript</option>
+                </InputSelect>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Šablona kódu</label>
+                <StandaloneCodeEditor @ref="codeEditor"
+                                      Id="editCodeEditor"
+                                      CssClass="monaco-container"
+                                      ConstructionOptions="GetEditorOptions" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Očekávaný výstup</label>
+                <InputTextArea rows="4" class="form-control" @bind-Value="activityModel.ExpectedOutput" />
+            </div>
+        }
+
+        <button class="btn btn-primary mt-4" type="submit">Uložit změny</button>
+    </EditForm>
+}
+
+<style>
+    .monaco-container {
+        height: 400px;
+        border: 1px solid #ccc;
+    }
+</style>
+
+@code {
+    [Parameter] public int ActivityId { get; set; }
+
+    private Activity? activityModel;
+    private StandaloneCodeEditor? codeEditor;
+
+    private CodeActivityModel codeModel = new();
+
+    // Dropdown jazyk
+    private string SelectedLanguage
+    {
+        get => codeModel.Language;
+        set
+        {
+            if (codeModel.Language != value)
+            {
+                codeModel.Language = value;
+                _ = ApplyLanguageChange(value);
+            }
+        }
+    }
+
+    // Šablony kódu
+    private readonly Dictionary<string, string> codeTemplates = new()
+    {
+        { "csharp", @"using System;
+
+class Program
+{
+    static void Main()
+    {
+        // Sem napište svůj kód
+    }
+}" },
+        { "python", @"# Sem napište svůj kód
+def main():
+    pass
+
+if __name__ == '__main__':
+    main()" },
+        { "java", @"public class Main {
+    public static void main(String[] args) {
+        // Sem napište svůj kód
+    }
+}" },
+        { "javascript", @"// Sem napište svůj kód
+function main() {
+    console.log('Hello, world!');
+}
+main();" }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        activityModel = await ActivityService.GetActivityWithQuestionsAsync(ActivityId);
+
+        if (activityModel?.Type == ActivityType.Code)
+        {
+            // Nastav jazyk
+            codeModel.Language = activityModel.LanguageId switch
+            {
+                51 => "csharp",
+                71 => "python",
+                62 => "java",
+                63 => "javascript",
+                _ => "csharp"
+            };
+
+            // Pokud má uložený kód, použij ho, jinak šablonu
+            if (!string.IsNullOrWhiteSpace(activityModel.InitialCode))
+                codeModel.InitialCode = activityModel.InitialCode;
+            else if (codeTemplates.TryGetValue(codeModel.Language, out var template))
+                codeModel.InitialCode = template;
+        }
+    }
+
+    private StandaloneEditorConstructionOptions GetEditorOptions(StandaloneCodeEditor editor) =>
+        new()
+        {
+            AutomaticLayout = true,
+            Language = codeModel.Language,
+            Value = codeModel.InitialCode
+        };
+
+    private async Task ApplyLanguageChange(string newLang)
+    {
+        // Přepni šablonu
+        if (codeTemplates.TryGetValue(newLang, out var template))
+        {
+            codeModel.InitialCode = template;
+            if (codeEditor is not null)
+                await codeEditor.SetValue(template);
+        }
+
+        // Přepni jazyk modelu
+        if (codeEditor is not null)
+        {
+            var model = await codeEditor.GetModel();
+            if (model is not null)
+                await BlazorMonaco.Editor.Global.SetModelLanguage(JS, model, newLang);
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        if (activityModel?.Type == ActivityType.Code && codeEditor is not null)
+        {
+            codeModel.InitialCode = await codeEditor.GetValue();
+            activityModel.InitialCode = codeModel.InitialCode;
+
+            activityModel.LanguageId = codeModel.Language switch
+            {
+                "csharp" => 51,
+                "python" => 71,
+                "java" => 62,
+                "javascript" => 63,
+                _ => 51
+            };
+        }
+
+        await ActivityService.UpdateActivityAsync(activityModel!);
+        Navigation.NavigateTo($"/activity-detail/{activityModel!.Id}");
+    }
+}

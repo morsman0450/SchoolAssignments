@@ -25,8 +25,6 @@ public class CustomAuthenticationStateProvider : AuthenticationStateProvider
             if (userSessionStorageResult.Success && userSessionStorageResult.Value != null)
             {
                 var userSession = userSessionStorageResult.Value;
-
-                // Ověření, že uživatel stále existuje a je aktivní
                 var user = await _authService.GetUserByIdAsync(userSession.Id);
                 if (user != null)
                 {
@@ -46,7 +44,6 @@ public class CustomAuthenticationStateProvider : AuthenticationStateProvider
         }
         catch
         {
-            // Pokud nastane chyba, vrátíme anonymního uživatele
         }
 
         return new AuthenticationState(_anonymous);

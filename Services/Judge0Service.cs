@@ -11,16 +11,9 @@
         public Judge0Service(HttpClient http)
         {
             _http = http;
-            // VARIANTA 1: RapidAPI (stabilní)
-            _http.BaseAddress = new Uri("https://judge0-ce.p.rapidapi.com/");
-            _http.DefaultRequestHeaders.Add("X-RapidAPI-Key", "<TVŮJ_API_KEY>");
-            _http.DefaultRequestHeaders.Add("X-RapidAPI-Host", "judge0-ce.p.rapidapi.com");
-
-            // VARIANTA 2 (místo RapidAPI): veřejná CE instance
-            // _http.BaseAddress = new Uri("https://ce.judge0.com/");
         }
 
-        public async Task<Judge0RunResult> RunAsync(int languageId, string sourceCode, string? stdin)
+        public async Task<Judge0RunResult> RunCodeAsync(int languageId, string sourceCode, string? stdin)
         {
             var payload = new
             {
@@ -37,6 +30,7 @@
 
             string? stdout = doc.RootElement.GetPropertyOrDefault("stdout")?.GetString();
             string? stderr = doc.RootElement.GetPropertyOrDefault("stderr")?.GetString();
+            string? compileOutput = doc.RootElement.GetPropertyOrDefault("compile_output")?.GetString();
             int? exitCode = doc.RootElement.GetPropertyOrDefault("exit_code")?.GetInt32();
             string status = doc.RootElement.GetProperty("status").GetPropertyOrDefault("description")?.GetString() ?? "";
 
@@ -44,10 +38,12 @@
             {
                 Stdout = stdout,
                 Stderr = stderr,
+                CompileOutput = compileOutput,
                 ExitCode = exitCode,
                 StatusDescription = status
             };
         }
+
     }
 
     internal static class JsonExt

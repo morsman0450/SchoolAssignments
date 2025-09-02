@@ -1,86 +1,146 @@
-﻿@page "/take-test/{ActivityId:int}"
+﻿@page "/take-activity/{ActivityId:int}"
 @using SchoolAssignments.Models
 @using SchoolAssignments.Services
-@using System.Linq.Expressions
+@using System.Security.Claims
+@using BlazorMonaco
+@using BlazorMonaco.Editor
 @inject IActivityService ActivityService
 @inject ISubmissionService SubmissionService
 @inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JS
 
-<h3>Vyplň test</h3>
+<h3>Vyplnit aktivitu</h3>
 
 @if (isLoading)
 {
-    <p>Načítám test...</p>
+    <p>Načítám...</p>
 }
 else if (loadError)
 {
-    <p class="text-danger">Nepodařilo se načíst test.</p>
+    <p class="text-danger">Nepodařilo se načíst aktivitu.</p>
+}
+else if (activity == null)
+{
+    <p class="text-warning">Aktivita nebyla nalezena.</p>
 }
 else
 {
     <h4>@activity.Title</h4>
     <p>@activity.Description</p>
 
-    <EditForm Model="formModel" OnValidSubmit="HandleSubmit">
-        <DataAnnotationsValidator />
-        <ValidationSummary />
+    @* TEST AKTIVITA *@
+    @if (activity.Type == ActivityType.Test)
+    {
+        <EditForm Model="formModel" OnValidSubmit="HandleTestSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
 
-        @foreach (var question in questions)
-        {
-            <div class="mb-4">
-                <label><strong>@question.Text</strong></label>
-                <div>
-                    @if (question.Type == QuestionType.SingleChoice)
-                    {
-                        @foreach (var option in question.Options)
+            @foreach (var question in questions)
+            {
+                <div class="mb-4">
+                    <label><strong>@question.Text</strong></label>
+                    <div>
+                        @if (question.Type == QuestionType.SingleChoice)
                         {
-                            <div class="form-check">
-                                <input type="radio"
-                                       class="form-check-input"
-                                       name="question_@question.Id"
-                                       value="@option.Id"
-                                       id="q@question.Id-option@option.Id"
-                                       checked="@(GetQuestionAnswer(question.Id).SelectedOptionId == option.Id)"
-                                       @onchange="@(e => SetSingleAnswer(question.Id, option.Id))" />
-                                <label class="form-check-label" for="q@question.Id-option@option.Id">@option.Text</label>
-                            </div>
+                            @foreach (var option in question.Options)
+                            {
+                                <div class="form-check">
+                                    <input type="radio"
+                                           class="form-check-input"
+                                           name="question_@question.Id"
+                                           value="@option.Id"
+                                           id="q@question.Id-option@option.Id"
+                                           checked="@(GetQuestionAnswer(question.Id).SelectedOptionId == option.Id)"
+                                           @onchange="@(e => SetSingleAnswer(question.Id, option.Id))" />
+                                    <label class="form-check-label" for="q@question.Id-option@option.Id">@option.Text</label>
+                                </div>
+                            }
                         }
-                    }
-                    else if (question.Type == QuestionType.MultipleChoice)
-                    {
-                        foreach (var option in question.Options)
+                        else if (question.Type == QuestionType.MultipleChoice)
                         {
-                            var optionAnswer = GetOptionAnswer(question.Id, option.Id);
-                            <div class="form-check">
-                                <InputCheckbox class="form-check-input"
-                                               id="q@question.Id-option@option.Id"
-                                               Value="optionAnswer.IsSelected"
-                                               ValueChanged="value => SetMultipleAnswer(question.Id, option.Id, value)"
-                                               ValueExpression="() => optionAnswer.IsSelected" />
-                                <label class="form-check-label" for="q@question.Id-option@option.Id">@option.Text</label>
-                            </div>
+                            foreach (var option in question.Options)
+                            {
+                                var optionAnswer = GetOptionAnswer(question.Id, option.Id);
+                                <div class="form-check">
+                                    <InputCheckbox class="form-check-input"
+                                                   id="q@question.Id-option@option.Id"
+                                                   Value="optionAnswer.IsSelected"
+                                                   ValueChanged="value => SetMultipleAnswer(question.Id, option.Id, value)"
+                                                   ValueExpression="() => optionAnswer.IsSelected" />
+                                    <label class="form-check-label" for="q@question.Id-option@option.Id">@option.Text</label>
+                                </div>
+                            }
                         }
-                    }
+                    </div>
                 </div>
-            </div>
-        }
+            }
 
-        <button type="submit" class="btn btn-primary">Odevzdat test</button>
-    </EditForm>
+            <button type="submit" class="btn btn-primary">Odevzdat test</button>
+        </EditForm>
+    }
+
+    @* KÓDOVÁ AKTIVITA *@
+    else if (activity.Type == ActivityType.Code)
+    {
+        <div class="mb-3">
+            <label class="form-label">Zdrojový kód</label>
+            <StandaloneCodeEditor @ref="codeEditor"
+                                  Id="studentCodeEditor"
+                                  CssClass="monaco-container"
+                                  ConstructionOptions="GetEditorOptions" />
+        </div>
+
+        <button class="btn btn-primary" @onclick="SubmitCodeActivity">Odevzdat kód</button>
+    }
+
+    @* FILE AKTIVITA *@
+    else if (activity.Type == ActivityType.File)
+    {
+        <div class="mb-3">
+            <label class="form-label">Odevzdat soubory (max. 5)</label>
+            <InputFile OnChange="HandleFilesSelected" multiple />
+
+            @if (uploadedFiles.Any())
+            {
+                <ul>
+                    @foreach (var file in uploadedFiles)
+                    {
+                        <li>
+                            @file.Name
+                            <button type="button" class="btn btn-sm btn-danger ms-2" @onclick="() => RemoveFile(file)">❌ Odebrat</button>
+                        </li>
+                    }
+                </ul>
+            }
+
+            <button class="btn btn-primary mt-2" @onclick="SubmitFilesAsync" disabled="@(uploadedFiles.Count == 0)">Odevzdat soubory</button>
+        </div>
+    }
 }
 
+<style>
+    .monaco-container {
+        height: 400px;
+        border: 1px solid #ccc;
+    }
+</style>
+
 @code {
-    [Parameter]
-    public int ActivityId { get; set; }
+    [Parameter] public int ActivityId { get; set; }
 
-    private Activity activity = null!;
+    private Activity? activity;
     private List<Question> questions = new();
-    private TestFormModel formModel = new();
-
     private bool isLoading = true;
     private bool loadError = false;
 
-    // Wrapper třídy pro binding
+    private StandaloneCodeEditor? codeEditor;
+    private string initialCode = string.Empty;
+
+    private TestFormModel formModel = new();
+    private List<IBrowserFile> uploadedFiles = new();
+
+    // ===== TEST MODELY =====
     public class TestFormModel
     {
         public Dictionary<int, QuestionAnswer> Questions { get; set; } = new();
@@ -100,53 +160,32 @@ else
     private QuestionAnswer GetQuestionAnswer(int questionId)
     {
         if (!formModel.Questions.ContainsKey(questionId))
-        {
             formModel.Questions[questionId] = new QuestionAnswer();
-        }
         return formModel.Questions[questionId];
     }
 
     private OptionAnswer GetOptionAnswer(int questionId, int optionId)
     {
-        var questionAnswer = GetQuestionAnswer(questionId);
-        if (!questionAnswer.Options.ContainsKey(optionId))
-        {
-            questionAnswer.Options[optionId] = new OptionAnswer();
-        }
-        return questionAnswer.Options[optionId];
+        var qa = GetQuestionAnswer(questionId);
+        if (!qa.Options.ContainsKey(optionId))
+            qa.Options[optionId] = new OptionAnswer();
+        return qa.Options[optionId];
     }
 
-    private void SetSingleAnswer(int questionId, int optionId)
-    {
-        GetQuestionAnswer(questionId).SelectedOptionId = optionId;
-        StateHasChanged(); // Důležité pro re-render
-    }
+    private void SetSingleAnswer(int questionId, int optionId) => GetQuestionAnswer(questionId).SelectedOptionId = optionId;
+    private void SetMultipleAnswer(int questionId, int optionId, bool value) => GetOptionAnswer(questionId, optionId).IsSelected = value;
 
-    private void SetMultipleAnswer(int questionId, int optionId, bool value)
-    {
-        GetOptionAnswer(questionId, optionId).IsSelected = value;
-    }
-
+    // ===== ON INIT =====
     protected override async Task OnInitializedAsync()
     {
         try
         {
             activity = await ActivityService.GetActivityWithQuestionsAsync(ActivityId);
-            questions = activity.Questions.ToList();
+            if (activity != null)
+                questions = activity.Questions.ToList();
 
-            // Inicializace form modelu
-            foreach (var question in questions)
-            {
-                var questionAnswer = GetQuestionAnswer(question.Id);
-
-                if (question.Type == QuestionType.MultipleChoice)
-                {
-                    foreach (var option in question.Options)
-                    {
-                        GetOptionAnswer(question.Id, option.Id);
-                    }
-                }
-            }
+            if (activity?.Type == ActivityType.Code)
+                initialCode = activity.InitialCode ?? string.Empty;
         }
         catch
         {
@@ -158,50 +197,125 @@ else
         }
     }
 
-    private async Task HandleSubmit()
+    // ===== TEST SUBMIT =====
+    private async Task HandleTestSubmit()
     {
+        if (activity == null) return;
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity == null || !user.Identity.IsAuthenticated) return;
+
+        int studentId = int.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
         var submission = new Submission
         {
             ActivityId = ActivityId,
-            SubmittedAt = DateTime.UtcNow,
-            StudentId = 1 // TODO: nahradit skutečným přihlášeným uživatelem
+            StudentId = studentId,
+            SubmittedAt = DateTime.UtcNow
         };
 
         var studentAnswerList = new List<StudentAnswer>();
 
-        foreach (var question in questions)
+        foreach (var q in questions)
         {
-            if (question.Type == QuestionType.SingleChoice)
+            if (q.Type == QuestionType.SingleChoice)
             {
-                var selectedOptionId = GetQuestionAnswer(question.Id).SelectedOptionId;
-                if (selectedOptionId.HasValue)
-                {
-                    studentAnswerList.Add(new StudentAnswer
-                    {
-                        QuestionId = question.Id,
-                        AnswerOptionId = selectedOptionId.Value,
-                    });
-                }
+                var selected = GetQuestionAnswer(q.Id).SelectedOptionId;
+                if (selected.HasValue)
+                    studentAnswerList.Add(new StudentAnswer { QuestionId = q.Id, AnswerOptionId = selected.Value });
             }
-            else if (question.Type == QuestionType.MultipleChoice)
+            else if (q.Type == QuestionType.MultipleChoice)
             {
-                foreach (var option in question.Options)
+                foreach (var option in q.Options)
                 {
-                    var optionAnswer = GetOptionAnswer(question.Id, option.Id);
-                    if (optionAnswer.IsSelected)
-                    {
-                        studentAnswerList.Add(new StudentAnswer
-                        {
-                            QuestionId = question.Id,
-                            AnswerOptionId = option.Id,
-                        });
-                    }
+                    if (GetOptionAnswer(q.Id, option.Id).IsSelected)
+                        studentAnswerList.Add(new StudentAnswer { QuestionId = q.Id, AnswerOptionId = option.Id });
                 }
             }
         }
 
         await SubmissionService.CreateSubmissionAsync(submission, studentAnswerList);
+        Navigation.NavigateTo($"/submission-result/{submission.Id}");
+    }
+
+    // ===== FILE UPLOAD =====
+    private void HandleFilesSelected(InputFileChangeEventArgs e)
+    {
+        foreach (var file in e.GetMultipleFiles())
+        {
+            if (uploadedFiles.Count >= 5)
+            {
+                JS.InvokeVoidAsync("alert", "Maximálně 5 souborů je povoleno.");
+                break;
+            }
+            uploadedFiles.Add(file);
+        }
+    }
+
+    private void RemoveFile(IBrowserFile file)
+    {
+        uploadedFiles.Remove(file);
+    }
+
+    private async Task SubmitFilesAsync()
+    {
+        if (activity == null || !uploadedFiles.Any()) return;
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity == null || !user.Identity.IsAuthenticated) return;
+
+        int studentId = int.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        var submission = await SubmissionService.UploadFilesAsync(ActivityId, studentId, uploadedFiles);
 
         Navigation.NavigateTo($"/submission-result/{submission.Id}");
     }
+
+    // ===== CODE SUBMIT =====
+    private async Task SubmitCodeActivity()
+    {
+        if (activity == null || codeEditor is null) return;
+
+        var studentCode = await codeEditor.GetValue();
+        if (string.IsNullOrWhiteSpace(studentCode)) return;
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity == null || !user.Identity.IsAuthenticated) return;
+
+        int studentId = int.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        var act = await ActivityService.GetActivityWithDetailsAsync(ActivityId);
+        if (act == null) return;
+
+        var submission = new Submission
+        {
+            ActivityId = ActivityId,
+            StudentId = studentId,
+            Code = studentCode,
+            LanguageId = act.LanguageId,
+            StdInput = act.StdInput,
+            Activity = act
+        };
+
+        var graded = await SubmissionService.RunAndGradeSubmissionAsync(submission);
+        Navigation.NavigateTo($"/submission-result/{graded.Id}");
+    }
+
+    private StandaloneEditorConstructionOptions GetEditorOptions(StandaloneCodeEditor editor) =>
+        new()
+        {
+            AutomaticLayout = true,
+            Language = activity?.LanguageId switch
+            {
+                51 => "csharp",
+                71 => "python",
+                62 => "java",
+                63 => "javascript",
+                _ => "csharp"
+            },
+            Value = initialCode
+        };
 }

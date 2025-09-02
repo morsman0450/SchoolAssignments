@@ -30,6 +30,26 @@ else if (submission != null)
             <p><strong>Komentář učitele:</strong> @submission.Feedback</p>
         }
 
+        @if (!string.IsNullOrEmpty(submission.CompileOutput))
+        {
+            <hr />
+            <h5>Chybový výstup kompilace</h5>
+            <pre>@submission.CompileOutput</pre>
+        }
+
+        @if (!string.IsNullOrEmpty(submission.StdOutput))
+        {
+            <hr />
+            <h5>Výstup programu</h5>
+            <pre>@submission.StdOutput</pre>
+        }
+
+        @if (!string.IsNullOrEmpty(submission.Stderr))
+        {
+            <h5>Chybový výstup (runtime)</h5>
+            <pre>@submission.Stderr</pre>
+        }
+
         <hr />
 
         <h5>Odpovědi</h5>

@@ -1,0 +1,87 @@
+﻿@page "/teacher-activities"
+@using System.Security.Claims
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@inject IActivityService ActivityService
+@inject AuthenticationStateProvider AuthProvider
+@inject NavigationManager Navigation
+
+<h3>Moje aktivity</h3>
+
+@if (activities == null)
+{
+    <p><em>Načítám...</em></p>
+}
+else if (!activities.Any())
+{
+    <p>Zatím jsi nevytvořil žádné aktivity.</p>
+}
+else
+{
+    <div class="oi-align-right"> <button class="btn btn-sm btn-primary" @onclick="@(() => CreateActivity())">Vytvořit aktivitu</button></div>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Název</th>
+                <th>Vytvořeno</th>
+                <th>Akce</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var a in activities)
+            {
+                <tr>
+                    <td>@a.Title</td>
+                    <td>@a.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" @onclick="@(() => EditActivity(a.Id))">Upravit</button>
+                        <button class="btn btn-sm btn-danger" @onclick="@(() => DeleteActivity(a.Id))">Smazat</button>
+                        <button class="btn btn-sm btn-secondary" @onclick="@(() => ReviewActivity(a.Id))">Odevzdáno</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Activity>? activities;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+
+        var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (int.TryParse(userId, out var teacherId))
+        {
+            activities = await ActivityService.GetTeacherActivitiesAsync(teacherId);
+        }
+        else
+        {
+            activities = new List<Activity>();
+        }
+    }
+
+    private void EditActivity(int id)
+    {
+        Navigation.NavigateTo($"/edit-activity/{id}");
+    }
+    private void CreateActivity()
+    {
+        Navigation.NavigateTo($"/create-activity");    
+    }
+
+    private void DeleteActivity(int id)
+    {
+        ActivityService.DeleteActivityAsync(id);
+        StateHasChanged();
+        Console.WriteLine($"Mazání aktivity {id}");
+    }
+
+    private void ReviewActivity(int id)
+    {
+        Navigation.NavigateTo($"/activity-submissions/{id}");
+    }
+}

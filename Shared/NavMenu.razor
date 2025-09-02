@@ -1,11 +1,6 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">SchoolAssignments</a>
-        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-    </div>
-</div>
+﻿@using System.Security.Claims
+@inject NavigationManager Navigation
+
 <div class="@NavMenuCssClass" @onclick="ToggleNavMenu">
     <nav class="flex-column">
         <div class="nav-item px-3">
@@ -13,21 +8,53 @@
                 <span class="oi oi-home" aria-hidden="true"></span> Home
             </NavLink>
         </div>
+
+        <!-- ✅ Student -->
+        <AuthorizeView Roles="Student">
+            <Authorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="student-activities">
+                        <span class="oi oi-book" aria-hidden="true"></span> Moje úkoly
+                    </NavLink>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+
+        <!-- ✅ Teacher -->
+        <AuthorizeView Roles="Teacher">
+            <Authorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="teacher-activities">
+                        <span class="oi oi-pencil" aria-hidden="true"></span> Správa aktivit
+                    </NavLink>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+
+        <!-- ✅ Admin -->
+        <AuthorizeView Roles="Admin">
+            <Authorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="admin-dashboard">
+                        <span class="oi oi-cog" aria-hidden="true"></span> Administrace
+                    </NavLink>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+
+        <!-- ✅ Společné položky -->
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="login">
-                <span class="oi oi-plus" aria-hidden="true"></span> Login
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="register">
-                <span class="oi oi-list-rich" aria-hidden="true"></span> register
+            <NavLink class="nav-link" href="about">
+                <span class="oi oi-info" aria-hidden="true"></span> O aplikaci
             </NavLink>
         </div>
     </nav>
 </div>
+
 @code {
     private bool collapseNavMenu = true;
     private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
     private void ToggleNavMenu()
     {
         collapseNavMenu = !collapseNavMenu;
