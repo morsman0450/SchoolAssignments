@@ -74,10 +74,61 @@ namespace SchoolAssignments.Services
         // 🟢 Přehled aktivit učitele
         public async Task<List<Activity>> GetTeacherActivitiesAsync(int teacherId)
         {
+            var now = DateTime.UtcNow;
             return await _context.Activities
-                .Where(a => a.CreatedByUserId == teacherId)
+                .Where(a => a.CreatedByUserId == teacherId && a.DueDate > now && a.IsActive)
                 .OrderByDescending(a => a.CreatedAt)
                 .ToListAsync();
+        }
+        public async Task<List<Activity>> GetPastTeacherActivitiesAsync(int teacherId)
+        {
+            var now = DateTime.UtcNow;
+            return await _context.Activities
+                .Where(a => a.CreatedByUserId == teacherId && a.DueDate < now && a.IsActive)
+                .OrderByDescending(a => a.CreatedAt)
+                .ToListAsync();
+        }
+
+        public async Task<List<Activity>> GetStudentActivitiesAsync(int studentId)
+        {
+            var now = DateTime.UtcNow;
+
+            var classIds = await _context.ClassStudents
+                .Where(cs => cs.StudentId == studentId)
+                .Select(cs => cs.ClassId)
+                .ToListAsync();
+
+            var activities = await _context.Activities
+                .Where(a => classIds.Contains(a.ClassId) && a.IsActive && a.DueDate > now)
+                .Include(a => a.Submissions) // přidáme submissiony
+                .OrderByDescending(a => a.CreatedAt)
+                .ToListAsync();
+
+            // napočítáme pokusy pro daného studenta
+            foreach (var a in activities)
+            {
+                a.UsedAttempts = a.Submissions.Count(s => s.StudentId == studentId);
+            }
+
+            return activities;
+        }
+
+
+
+        public async Task<List<Activity>> GetPastStudentActivitiesAsync(int studentId)
+        {
+            var now = DateTime.UtcNow;
+            // Získáme třídy, do kterých student patří
+            var classIds = await _context.ClassStudents
+                .Where(cs => cs.StudentId == studentId)
+                .Select(cs => cs.ClassId)
+                .ToListAsync();
+            // Získáme aktivity z těchto tříd
+            var activities = await _context.Activities
+                .Where(a => classIds.Contains(a.ClassId) && a.DueDate < now && a.IsActive)
+                .OrderByDescending(a => a.CreatedAt)
+                .ToListAsync();
+            return activities;
         }
         public async Task UpdateActivityAsync(Activity activity)
         {
@@ -94,7 +145,6 @@ namespace SchoolAssignments.Services
                 await _context.SaveChangesAsync();
             }
         }
-
 
     }
 }

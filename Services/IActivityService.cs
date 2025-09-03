@@ -11,9 +11,12 @@ namespace SchoolAssignments.Services
         Task<Activity?> GetActivityWithQuestionsAsync(int activityId);
         Task<List<Activity>> GetTeacherActivitiesAsync(int teacherId);
         Task UpdateActivityAsync(Activity activity);
-        
+        Task<List<Activity>> GetStudentActivitiesAsync(int studentId);
         Task DeleteActivityAsync(int activityId);
+        Task<List<Activity>> GetPastTeacherActivitiesAsync(int teacherId);
+        Task<List<Activity>> GetPastStudentActivitiesAsync(int studentId);
 
+        
 
     }
 }

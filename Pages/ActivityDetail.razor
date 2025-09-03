@@ -30,18 +30,29 @@ else
                 {
                     <div class="mb-3">
                         <strong>@question.Text</strong> (@question.Type)
-                        <ul>
-                            @foreach (var option in question.Options)
-                            {
-                                <li>@option.Text @if(option.IsCorrect) {
-                                <strong>(správná odpověď)</strong>
-                            }
-            </li>
+                        @if (question.Type == QuestionType.OpenText)
+                        {
+                            <p><strong>Správná odpověď:</strong> @question.CorrectAnswerText</p>
                         }
-                    </ul>
-                </div>
+                        else
+                        {
+                            <ul>
+                                @foreach (var option in question.Options)
+                                {
+                                    <li>
+                                        @option.Text
+                                        @if (option.IsCorrect)
+                                        {
+                                            <strong>(správná odpověď)</strong>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                }
             }
-        }
+
     </div>
 </div>
 

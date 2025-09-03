@@ -1,0 +1,103 @@
+﻿@page "/teacher-classes"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthProvider
+@inject NavigationManager Navigation
+@inject IClassService ClassService
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="text-primary">
+            <i class="fas fa-chalkboard-teacher me-2"></i>Moje třídy
+        </h3>
+        <span class="badge bg-primary fs-6">@(classes?.Count ?? 0) tříd</span>
+    </div>
+
+    @if (classes == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Načítání...</span>
+            </div>
+            <p class="text-muted mt-3">Načítám seznam tříd...</p>
+        </div>
+    }
+    else if (!classes.Any())
+    {
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-chalkboard text-muted fa-3x mb-3"></i>
+                <h5 class="text-muted">Nemáte žádné třídy</h5>   
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var classItem in classes)
+            {
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100 shadow-sm border-0 hover-card">
+                        <div class="card-header bg-primary text-white">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="card-title mb-0">
+                                    <i class="fas fa-users me-2"></i>@classItem.Name
+                                </h6>
+                                <span class="badge bg-light text-primary">@classItem.Students?.Count studentů</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <small class="text-muted">Předmět</small>
+                                <p class="mb-0 fw-semibold">@classItem.Subject</p>
+                            </div>
+                            <div class="mb-3">
+                                <small class="text-muted">Vytvořeno</small>
+                                <p class="mb-0 text-muted">@classItem.CreatedAt.ToString("dd.MM.yyyy")</p>
+                            </div>
+                            <div class="mb-3">
+                                <small class="text-muted">Počet aktivit</small>
+                                <p class="mb-0 text-muted">@(classItem.Activities?.Count ?? 0) aktivit</p>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-transparent border-0 pt-0">
+                            <button class="btn btn-outline-primary w-100"
+                                    @onclick="@(() => ClassDetail(classItem.Id))">
+                                <i class="fas fa-eye me-1"></i>Spravovat třídu
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+
+
+@code {
+    private List<Class>? classes;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+
+        var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (int.TryParse(userId, out var teacherId))
+        {
+            classes = await ClassService.GetTeacherClassesAsync(teacherId);
+        }
+        else
+        {
+            classes = new List<Class>();
+        }
+    }
+
+    private void ClassDetail(int classId)
+    {
+        Navigation.NavigateTo($"/class-detail/{classId}");
+    }
+}

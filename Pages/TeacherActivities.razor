@@ -18,21 +18,46 @@ else if (!activities.Any())
 }
 else
 {
-    <div class="oi-align-right"> <button class="btn btn-sm btn-primary" @onclick="@(() => CreateActivity())">Vytvořit aktivitu</button></div>
+    <div class="oi-align-right mb-2">
+        <button class="btn btn-sm btn-primary" @onclick="CreateActivity">Vytvořit aktivitu</button>
+    </div>
+
     <table class="table table-striped">
         <thead>
             <tr>
                 <th>Název</th>
                 <th>Vytvořeno</th>
+                <th>Termín odevzdání</th>
                 <th>Akce</th>
             </tr>
         </thead>
         <tbody>
             @foreach (var a in activities)
             {
-                <tr>
+                var localDue = a.DueDate?.ToLocalTime();
+                <tr class="@GetDueDateRowClass(localDue)">
                     <td>@a.Title</td>
-                    <td>@a.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
+                    <td>@a.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
+                    <td>
+                        @if (localDue.HasValue)
+                        {
+                            <span class="@GetDueDateBadgeClass(localDue.Value)">
+                                @localDue.Value.ToString("dd.MM.yyyy HH:mm")
+                                @if (GetDaysUntilDue(localDue.Value) >= 0)
+                                {
+                                    <small class="ms-1">(@GetDueDateText(localDue.Value))</small>
+                                }
+                                else
+                                {
+                                    <small class="ms-1 fw-bold">(po termínu)</small>
+                                }
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">Bez termínu</span>
+                        }
+                    </td>
                     <td>
                         <button class="btn btn-sm btn-primary" @onclick="@(() => EditActivity(a.Id))">Upravit</button>
                         <button class="btn btn-sm btn-danger" @onclick="@(() => DeleteActivity(a.Id))">Smazat</button>
@@ -51,7 +76,6 @@ else
     {
         var state = await AuthProvider.GetAuthenticationStateAsync();
         var user = state.User;
-
         var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
         if (int.TryParse(userId, out var teacherId))
@@ -64,24 +88,58 @@ else
         }
     }
 
-    private void EditActivity(int id)
-    {
-        Navigation.NavigateTo($"/edit-activity/{id}");
-    }
-    private void CreateActivity()
-    {
-        Navigation.NavigateTo($"/create-activity");    
-    }
+    private void EditActivity(int id) => Navigation.NavigateTo($"/edit-activity/{id}");
+    private void CreateActivity() => Navigation.NavigateTo($"/create-activity");
+    private void ReviewActivity(int id) => Navigation.NavigateTo($"/activity-submissions/{id}");
 
-    private void DeleteActivity(int id)
+    private async void DeleteActivity(int id)
     {
-        ActivityService.DeleteActivityAsync(id);
+        await ActivityService.DeleteActivityAsync(id);
+
+        var state = await AuthProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+        var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (int.TryParse(userId, out var teacherId))
+        {
+            activities = await ActivityService.GetTeacherActivitiesAsync(teacherId);
+        }
         StateHasChanged();
-        Console.WriteLine($"Mazání aktivity {id}");
     }
 
-    private void ReviewActivity(int id)
+    // Metody pro určení vzhledu podle due date
+    private string GetDueDateRowClass(DateTime? dueDate)
     {
-        Navigation.NavigateTo($"/activity-submissions/{id}");
+        if (!dueDate.HasValue) return "";
+        var daysUntil = GetDaysUntilDue(dueDate.Value);
+        if (daysUntil < 0) return "due-overdue";
+        if (daysUntil <= 1) return "due-urgent";
+        if (daysUntil <= 3) return "due-soon";
+        return "";
+    }
+
+    private string GetDueDateBadgeClass(DateTime dueDate)
+    {
+        var daysUntil = GetDaysUntilDue(dueDate);
+        if (daysUntil < 0) return "badge-due-overdue";
+        if (daysUntil <= 1) return "badge-due-urgent";
+        if (daysUntil <= 3) return "badge-due-soon";
+        return "badge-due-normal";
+    }
+
+    private int GetDaysUntilDue(DateTime dueDate)
+    {
+        // vždy převést uložený UTC čas na lokální
+        var localDue = dueDate.ToLocalTime();
+        return (int)(localDue.Date - DateTime.Now.Date).TotalDays;
+    }
+
+    private string GetDueDateText(DateTime dueDate)
+    {
+        var daysUntil = GetDaysUntilDue(dueDate);
+        if (daysUntil == 0) return "dnes";
+        if (daysUntil == 1) return "zítra";
+        if (daysUntil > 1) return $"za {daysUntil} dnů";
+        return $"před {Math.Abs(daysUntil)} dny";
     }
 }

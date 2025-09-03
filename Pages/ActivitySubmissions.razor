@@ -2,6 +2,7 @@
 @using SchoolAssignments.Models
 @using SchoolAssignments.Services
 @inject ISubmissionService SubmissionService
+@inject AuthenticationStateProvider AuthProvider
 @inject NavigationManager Navigation
 
 <h3>Odevzdání pro aktivitu</h3>
@@ -22,7 +23,10 @@ else if (submissions.Any())
     <table class="table table-striped">
         <thead>
             <tr>
-                <th>Student</th>
+                @if (isTeacher)
+                {
+                    <th>Student</th>
+                }
                 <th>Odevzdáno</th>
                 <th>Body</th>
                 <th>Feedback</th>
@@ -30,13 +34,16 @@ else if (submissions.Any())
             </tr>
         </thead>
         <tbody>
-            @foreach (var submission in submissions)
+            @foreach (var submission in submissions.OrderByDescending(s => s.SubmittedAt))
             {
                 <tr>
-                    <td>@submission.Student.FirstName @submission.Student.LastName</td>
+                    @if (isTeacher)
+                    {
+                        <td>@submission.Student.FirstName @submission.Student.LastName</td>
+                    }
                     <td>@submission.SubmittedAt.ToLocalTime()</td>
                     <td>@(submission.Points?.ToString() ?? "-") / @submission.Activity.MaxPoints</td>
-                    <td>@submission.Feedback</td>
+                    <td>@(string.IsNullOrEmpty(submission.Feedback) ? "-" : submission.Feedback)</td>
                     <td>
                         <button class="btn btn-sm btn-outline-primary" @onclick="() => ViewSubmission(submission.Id)">
                             Zobrazit
@@ -53,18 +60,34 @@ else
 }
 
 @code {
-    [Parameter]
-    public int ActivityId { get; set; }
+    [Parameter] public int ActivityId { get; set; }
 
     private List<Submission> submissions = new();
     private bool isLoading = true;
     private bool loadError = false;
+    private bool isTeacher = false;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            submissions = await SubmissionService.GetSubmissionsByActivityAsync(ActivityId);
+            var authState = await AuthProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            isTeacher = user.IsInRole("Teacher");
+
+            if (isTeacher)
+            {
+                submissions = await SubmissionService.GetSubmissionsByActivityAsync(ActivityId);
+            }
+            else
+            {
+                var userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (int.TryParse(userId, out var studentId))
+                {
+                    submissions = await SubmissionService.GetStudentSubmissionsByActivityAsync(studentId, ActivityId);
+                }
+            }
         }
         catch
         {

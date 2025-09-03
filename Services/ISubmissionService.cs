@@ -12,8 +12,10 @@ namespace SchoolAssignments.Services
         Task<List<Submission>> GetSubmissionsByActivityAsync(int activityId);
 
         Task UpdateSubmissionAsync(Submission submission);
-
+        Task<List<Submission>> GetStudentSubmissionsAsync(int studentId);
         Task<Submission> UploadFilesAsync(int activityId, int studentId, List<IBrowserFile> files);
-
+        Task<int> GetUsedAttemptsAsync(int activityId, int studentId);
+        Task<List<StudentActivitySummary>> GetStudentActivitySummariesAsync(int studentId);
+        Task<List<Submission>> GetStudentSubmissionsByActivityAsync(int studentId, int activityId);
     }
 }

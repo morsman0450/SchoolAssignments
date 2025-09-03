@@ -63,10 +63,27 @@
         <InputNumber class="form-control" @bind-Value="activityModel.MaxAttempts" />
     </div>
 
-    <!-- Termín -->
+    <!-- Termín odevzdání -->
     <div class="mb-3">
         <label class="form-label">Termín odevzdání</label>
-        <InputDate class="form-control" @bind-Value="activityModel.DueDate" />
+        <div class="row">
+            <div class="col-md-6">
+                <InputDate class="form-control" @bind-Value="dueDateOnly" />
+                <div class="form-text">Datum</div>
+            </div>
+            <div class="col-md-6">
+                <InputDate Type="InputDateType.Time" class="form-control" @bind-Value="dueTimeOnly" />
+                <div class="form-text">Čas</div>
+            </div>
+        </div>
+        <div class="form-check mt-2">
+            <InputCheckbox class="form-check-input" id="hasDueDate" @bind-Value="hasDueDate" />
+            <label class="form-check-label" for="hasDueDate">Nastavit termín odevzdání</label>
+        </div>
+        @if (hasDueDate && combinedDueDate.HasValue)
+        {
+            <small class="text-muted">Termín: @combinedDueDate.Value.ToString("dd.MM.yyyy HH:mm")</small>
+        }
     </div>
 
     <!-- Automatické hodnocení -->
@@ -103,6 +120,61 @@
         </div>
     }
 
+    <!-- Testová aktivita -->
+    <!-- Testová aktivita -->
+    @if (activityModel.Type == ActivityType.Test)
+    {
+        <hr />
+        <h4>Otázky testu</h4>
+
+        @foreach (var question in testQuestions)
+        {
+            <div class="card p-3 mb-3">
+                <label>Text otázky</label>
+                <InputText class="form-control mb-2" @bind-Value="question.Text" />
+
+                <label class="mt-2">Typ otázky:</label>
+                <InputSelect class="form-select" @bind-Value="question.Type">
+                    @foreach (var qt in Enum.GetValues<QuestionType>())
+                    {
+                        <option value="@qt">@qt</option>
+                    }
+                </InputSelect>
+
+                @if (question.Type == QuestionType.OpenText)
+                {
+                    <label class="mt-3">Očekávaná správná odpověď</label>
+                    <InputText class="form-control" @bind-Value="question.CorrectAnswerText" />
+                }
+                else
+                {
+                    <h6 class="mt-3">Možnosti odpovědi</h6>
+                    @foreach (var option in question.Options)
+                    {
+                        <div class="input-group mb-2">
+                            <InputText class="form-control" @bind-Value="option.Text" />
+                            <div class="input-group-text">
+                                <InputCheckbox @bind-Value="option.IsCorrect" /> Správná
+                            </div>
+                        </div>
+                    }
+
+                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => AddOption(question)">
+                        ➕ Přidat možnost
+                    </button>
+                }
+            </div>
+        }
+
+        }
+
+
+        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddQuestion">
+            ➕ Přidat otázku
+        </button>
+    }
+
+
     <button class="btn btn-primary mt-4" type="submit">Vytvořit aktivitu</button>
 </EditForm>
 
@@ -116,6 +188,7 @@
 @code {
     private List<Class> classes = new();
     private StandaloneCodeEditor? codeEditor;
+    private List<Question> testQuestions = new();
 
     private Activity activityModel = new()
     {
@@ -138,7 +211,38 @@ class Program
 }"
     };
 
-    // Property pro dropdown jazyka
+
+
+    private void AddQuestion()
+    {
+        testQuestions.Add(new Question
+        {
+            Text = "Nová otázka",
+            Type = QuestionType.SingleChoice, // výchozí typ
+            Options = new List<AnswerOption>
+        {
+            new AnswerOption { Text = "Odpověď 1", IsCorrect = false },
+            new AnswerOption { Text = "Odpověď 2", IsCorrect = false }
+        }
+        });
+    }
+
+
+    private void AddOption(Question question)
+    {
+        question.Options.Add(new AnswerOption { Text = "Nová možnost", IsCorrect = false });
+    }
+
+    // Pomocné proměnné pro datum a čas
+    private bool hasDueDate = false;
+    private DateTime dueDateOnly = DateTime.Today.AddDays(7);
+    private DateTime dueTimeOnly = new DateTime(DateTime.Today.Year, DateTime.Today.Month, DateTime.Today.Day, 23, 59, 0);
+
+    private DateTime? combinedDueDate => hasDueDate
+        ? new DateTime(dueDateOnly.Year, dueDateOnly.Month, dueDateOnly.Day,
+                      dueTimeOnly.Hour, dueTimeOnly.Minute, dueTimeOnly.Second)
+        : null;
+
     private string SelectedLanguage
     {
         get => codeModel.Language;
@@ -152,7 +256,6 @@ class Program
         }
     }
 
-    // Slovník šablon
     private readonly Dictionary<string, string> codeTemplates = new()
     {
         { "csharp", @"using System;
@@ -202,7 +305,6 @@ main();" }
 
     private async Task ApplyLanguageChange(string newLang)
     {
-        // Přepni šablonu
         if (codeTemplates.TryGetValue(newLang, out var template))
         {
             codeModel.InitialCode = template;
@@ -210,7 +312,6 @@ main();" }
                 await codeEditor.SetValue(template);
         }
 
-        // Přepni jazyk modelu
         if (codeEditor is not null)
         {
             var model = await codeEditor.GetModel();
@@ -221,6 +322,13 @@ main();" }
 
     private async Task HandleValidSubmit()
     {
+        // Nastavení DueDate (pokud je)
+        if (hasDueDate && combinedDueDate.HasValue)
+            activityModel.DueDate = combinedDueDate.Value.ToUniversalTime();
+        else
+            activityModel.DueDate = null;
+
+        // Code aktivita (pokud je)
         if (activityModel.Type == ActivityType.Code && codeEditor is not null)
         {
             codeModel.InitialCode = await codeEditor.GetValue();
@@ -236,14 +344,40 @@ main();" }
             };
         }
 
+        // Získání ID učitele
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
 
         if (user.Identity?.IsAuthenticated == true)
         {
             int teacherId = int.Parse(user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
-            var activityId = await ActivityService.CreateActivityWithQuestionsAsync(activityModel, new List<Question>(), teacherId);
-            Navigation.NavigateTo($"/activity-detail/{activityId}");
+
+            int activityId;
+            try
+            {
+                if (activityModel.Type == ActivityType.Test)
+                {
+                    // Přidání defaultní možnosti, pokud nějaká otázka nemá žádnou
+                    foreach (var q in testQuestions)
+                    {
+                        if (q.Options == null || !q.Options.Any())
+                            q.Options = new List<AnswerOption> { new AnswerOption { Text = "Defaultní odpověď", IsCorrect = false } };
+                    }
+
+                    activityId = await ActivityService.CreateActivityWithQuestionsAsync(activityModel, testQuestions, teacherId);
+                }
+                else
+                {
+                    activityId = await ActivityService.CreateActivityAsync(activityModel, teacherId);
+                }
+
+                Navigation.NavigateTo($"/activity-detail/{activityId}");
+            }
+            catch (Exception ex)
+            {
+                await JS.InvokeVoidAsync("alert", $"Chyba při vytváření aktivity: {ex.Message}");
+            }
         }
     }
+
 }

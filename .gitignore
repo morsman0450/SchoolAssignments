@@ -12,6 +12,10 @@ appsettings.json
 appsettings.Development.json
 Migrations/
 
+# Ignorovat všechny soubory odevzdání
+wwwroot/uploads/submissions/
+
+
 # User-specific files
 *.suo
 *.user

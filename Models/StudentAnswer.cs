@@ -9,6 +9,7 @@
 
         public int QuestionId { get; set; }
         public Question Question { get; set; } = null!;
+        public string? OpenTextAnswer { get; set; } // OpenText
 
         // Pokud student odpovídá výběrem z možností
         public int? AnswerOptionId { get; set; }

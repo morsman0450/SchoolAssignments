@@ -1,0 +1,43 @@
+﻿.due-soon {
+    background-color: #fff3cd !important;
+}
+
+.due-urgent {
+    background-color: #f8d7da !important;
+}
+
+.due-overdue {
+    background-color: #f5c6cb !important;
+}
+
+.badge-due-normal {
+    background-color: #28a745;
+    color: white;
+    padding: 0.25em 0.5em;
+    border-radius: 0.25rem;
+    font-size: 0.875em;
+}
+
+.badge-due-soon {
+    background-color: #ffc107;
+    color: #212529;
+    padding: 0.25em 0.5em;
+    border-radius: 0.25rem;
+    font-size: 0.875em;
+}
+
+.badge-due-urgent {
+    background-color: #fd7e14;
+    color: white;
+    padding: 0.25em 0.5em;
+    border-radius: 0.25rem;
+    font-size: 0.875em;
+}
+
+.badge-due-overdue {
+    background-color: #dc3545;
+    color: white;
+    padding: 0.25em 0.5em;
+    border-radius: 0.25rem;
+    font-size: 0.875em;
+}

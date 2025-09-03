@@ -6,6 +6,7 @@
         public string Title { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public int MaxAttempts { get; set; } = 1;
+        public int UsedAttempts { get; set; }
         public int ClassId { get; set; }
         public ActivityType Type { get; set; }
         public int MaxPoints { get; set; }

@@ -1,0 +1,79 @@
+﻿@page "/past-activities"
+@using System.Security.Claims
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@inject IActivityService ActivityService
+@inject AuthenticationStateProvider AuthProvider
+@inject NavigationManager Navigation
+
+<h3>Ukončené aktivity</h3>
+
+@if (activities == null)
+{
+    <p><em>Načítám...</em></p>
+}
+else if (!activities.Any())
+{
+    <p>Zatím nejsou žádné ukončené aktivity.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Název</th>
+                <th>Vytvořeno</th>
+                <th>Termín odevzdání</th>
+                <th>Typ</th>
+                <th>Akce</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var a in activities)
+            {
+                <tr>
+                    <td>@a.Title</td>
+                    <td>@a.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
+                    <td>@(a.DueDate?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "Bez termínu")</td>
+                    <td>@a.Type</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" @onclick="@(() => ViewActivity(a.Id))">Detail</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Activity>? activities;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (int.TryParse(userId, out var id))
+        {
+            // Zde můžeš rozlišit roli učitele a studenta
+            if (user.IsInRole("Teacher"))
+            {
+                activities = await ActivityService.GetPastTeacherActivitiesAsync(id);
+            }
+            else
+            {
+                activities = await ActivityService.GetPastStudentActivitiesAsync(id);
+            }
+        }
+        else
+        {
+            activities = new List<Activity>();
+        }
+    }
+
+    private void ViewActivity(int activityId)
+    {
+        Navigation.NavigateTo($"/activity-detail/{activityId}");
+    }
+}

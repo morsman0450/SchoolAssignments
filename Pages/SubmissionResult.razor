@@ -57,23 +57,33 @@ else if (submission != null)
         {
             <div class="mb-3">
                 <p><strong>@question.Text</strong></p>
-                <ul>
-                    @foreach (var option in question.Options)
-                    {
-                        var isSelected = submission.StudentAnswers.Any(sa => sa.AnswerOptionId == option.Id);
-                        var isCorrect = option.IsCorrect;
 
-                        <li style="color:@(isCorrect ? "green" : isSelected ? "red" : "black")">
-                            @(isSelected ? "✅ " : "❌ ") @option.Text
-                            @if (isCorrect && !isSelected)
-                            {
-                                <span class="text-success">(správná odpověď)</span>
-                            }
-                        </li>
-                    }
-                </ul>
+                @if (question.Type == QuestionType.OpenText)
+                {
+                    var openAnswer = submission.StudentAnswers.FirstOrDefault(sa => sa.QuestionId == question.Id)?.OpenTextAnswer;
+                    <p><em>Odpověď studenta:</em> @(openAnswer ?? "<neodevzdal>")</p>
+                }
+                else
+                {
+                    <ul>
+                        @foreach (var option in question.Options)
+                        {
+                            var isSelected = submission.StudentAnswers.Any(sa => sa.AnswerOptionId == option.Id);
+                            var isCorrect = option.IsCorrect;
+
+                            <li style="color:@(isCorrect ? "green" : isSelected ? "red" : "black")">
+                                @(isSelected ? "✅ " : "❌ ") @option.Text
+                                @if (isCorrect && !isSelected)
+                                {
+                                    <span class="text-success">(správná odpověď)</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
             </div>
         }
+
     </div>
 }
 

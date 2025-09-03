@@ -18,7 +18,6 @@ namespace SchoolAssignments.Services
             _judge = judge;
         }
 
-        // Vytvoření nové submission s odpověďmi
         public async Task CreateSubmissionAsync(Submission submission, List<StudentAnswer> answers)
         {
             var activity = await _context.Activities
@@ -35,7 +34,6 @@ namespace SchoolAssignments.Services
 
             var nextAttempt = existingAttempts.Any() ? existingAttempts.First().AttemptNumber + 1 : 1;
 
-            // Pokud je nastaven limit a student už má maximum → chyba
             if (activity.MaxAttempts > 0 && nextAttempt > activity.MaxAttempts)
                 throw new InvalidOperationException("Byl překročen maximální počet pokusů.");
 
@@ -188,6 +186,57 @@ namespace SchoolAssignments.Services
 
             return submission;
         }
+        public async Task<List<Submission>> GetStudentSubmissionsAsync(int studentId)
+        {
+            return await _context.Submissions
+                .Include(s => s.Activity)
+                .Where(s => s.StudentId == studentId)
+                .OrderByDescending(s => s.SubmittedAt)
+                .ToListAsync();
+        }
+        public async Task<int> GetUsedAttemptsAsync(int activityId, int studentId)
+        {
+            return await _context.Submissions
+                .Where(s => s.ActivityId == activityId && s.StudentId == studentId)
+                .CountAsync();
+        }
+
+        public async Task<List<StudentActivitySummary>> GetStudentActivitySummariesAsync(int studentId)
+        {
+            var submissions = await _context.Submissions
+                .Where(s => s.StudentId == studentId)
+                .Include(s => s.Activity)
+                .ToListAsync();
+
+            var summary = submissions
+                .GroupBy(s => s.ActivityId)
+                .Select(g => new StudentActivitySummary
+                {
+                    ActivityId = g.Key,
+                    Title = g.First().Activity.Title,
+                    MaxPoints = g.First().Activity.MaxPoints,
+                    LatestSubmissionDate = g.Max(s => s.SubmittedAt),
+                    LatestPoints = g.OrderByDescending(s => s.SubmittedAt).First().Points,
+                    AttemptsCount = g.Count()
+                })
+                .OrderByDescending(s => s.LatestSubmissionDate)
+                .ToList();
+
+            return summary;
+        }
+
+        public async Task<List<Submission>> GetStudentSubmissionsByActivityAsync(int studentId, int activityId)
+        {
+            return await _context.Submissions
+                .Where(s => s.StudentId == studentId && s.ActivityId == activityId)
+                .OrderByDescending(s => s.SubmittedAt) // nejnovější nahoře
+                .Include(s => s.Activity)
+                .Include(s => s.StudentAnswers)
+                    .ThenInclude(sa => sa.AnswerOption)
+                .Include(s => s.Files)
+                .ToListAsync();
+        }
+
 
 
     }

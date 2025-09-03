@@ -4,6 +4,8 @@
 @using System.Security.Claims
 @using BlazorMonaco
 @using BlazorMonaco.Editor
+@using SchoolAssignments.ViewModels
+@using Microsoft.AspNetCore.Components.Forms
 @inject IActivityService ActivityService
 @inject ISubmissionService SubmissionService
 @inject NavigationManager Navigation
@@ -38,47 +40,45 @@ else
 
             @foreach (var question in questions)
             {
+                var qModel = GetQuestionAnswer(question.Id);
+
                 <div class="mb-4">
-                    <label><strong>@question.Text</strong></label>
-                    <div>
-                        @if (question.Type == QuestionType.SingleChoice)
-                        {
+                    <label class="fw-bold">@question.Text</label>
+
+                    @if (question.Type == QuestionType.SingleChoice)
+                    {
+                        <InputRadioGroup @bind-Value="qModel.SelectedOptionId" Name="@($"q_{question.Id}")" class="d-block mt-2">
                             @foreach (var option in question.Options)
                             {
                                 <div class="form-check">
-                                    <input type="radio"
-                                           class="form-check-input"
-                                           name="question_@question.Id"
-                                           value="@option.Id"
-                                           id="q@question.Id-option@option.Id"
-                                           checked="@(GetQuestionAnswer(question.Id).SelectedOptionId == option.Id)"
-                                           @onchange="@(e => SetSingleAnswer(question.Id, option.Id))" />
-                                    <label class="form-check-label" for="q@question.Id-option@option.Id">@option.Text</label>
+                                    <InputRadio class="form-check-input" Value="@((int?)option.Id)" />
+                                    <label class="form-check-label">@option.Text</label>
                                 </div>
                             }
-                        }
-                        else if (question.Type == QuestionType.MultipleChoice)
+                        </InputRadioGroup>
+                    }
+                    else if (question.Type == QuestionType.MultipleChoice)
+                    {
+                        @foreach (var option in question.Options)
                         {
-                            foreach (var option in question.Options)
-                            {
-                                var optionAnswer = GetOptionAnswer(question.Id, option.Id);
-                                <div class="form-check">
-                                    <InputCheckbox class="form-check-input"
-                                                   id="q@question.Id-option@option.Id"
-                                                   Value="optionAnswer.IsSelected"
-                                                   ValueChanged="value => SetMultipleAnswer(question.Id, option.Id, value)"
-                                                   ValueExpression="() => optionAnswer.IsSelected" />
-                                    <label class="form-check-label" for="q@question.Id-option@option.Id">@option.Text</label>
-                                </div>
-                            }
+                            var optModel = GetOptionAnswer(question.Id, option.Id);
+                            <div class="form-check">
+                                <InputCheckbox class="form-check-input" @bind-Value="optModel.IsSelected" />
+                                <label class="form-check-label">@option.Text</label>
+                            </div>
                         }
-                    </div>
+                    }
+                    else if (question.Type == QuestionType.OpenText)
+                    {
+                        <InputTextArea class="form-control mt-2" @bind-Value="qModel.OpenTextAnswer" rows="3" />
+                    }
                 </div>
             }
 
             <button type="submit" class="btn btn-primary">Odevzdat test</button>
         </EditForm>
     }
+
 
     @* KÓDOVÁ AKTIVITA *@
     else if (activity.Type == ActivityType.Code)
@@ -141,16 +141,7 @@ else
     private List<IBrowserFile> uploadedFiles = new();
 
     // ===== TEST MODELY =====
-    public class TestFormModel
-    {
-        public Dictionary<int, QuestionAnswer> Questions { get; set; } = new();
-    }
-
-    public class QuestionAnswer
-    {
-        public int? SelectedOptionId { get; set; }
-        public Dictionary<int, OptionAnswer> Options { get; set; } = new();
-    }
+ 
 
     public class OptionAnswer
     {
@@ -172,19 +163,66 @@ else
         return qa.Options[optionId];
     }
 
-    private void SetSingleAnswer(int questionId, int optionId) => GetQuestionAnswer(questionId).SelectedOptionId = optionId;
-    private void SetMultipleAnswer(int questionId, int optionId, bool value) => GetOptionAnswer(questionId, optionId).IsSelected = value;
-
     // ===== ON INIT =====
     protected override async Task OnInitializedAsync()
     {
         try
         {
             activity = await ActivityService.GetActivityWithQuestionsAsync(ActivityId);
-            if (activity != null)
+
+            if (activity == null)
+            {
+                loadError = true;
+                return;
+            }
+
+            // Získat studentId
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            if (user.Identity == null || !user.Identity.IsAuthenticated)
+            {
+                Navigation.NavigateTo("/student-activities");
+                return;
+            }
+
+            int studentId = int.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+            // Spočítat počet pokusů
+            int usedAttempts = await SubmissionService.GetUsedAttemptsAsync(ActivityId, studentId);
+            if (activity.MaxAttempts > 0 && usedAttempts >= activity.MaxAttempts)
+            {
+                await JS.InvokeVoidAsync("alert", "Vyčerpal/a jste všechny pokusy této aktivity.");
+                Navigation.NavigateTo("/student-activities");
+                return;
+            }
+
+            // Zkontrolovat termín
+            if (activity.DueDate.HasValue && activity.DueDate.Value.ToLocalTime() < DateTime.Now)
+            {
+                await JS.InvokeVoidAsync("alert", "Tato aktivita je po termínu.");
+                Navigation.NavigateTo("/student-activities");
+                return;
+            }
+
+            if (activity.Type == ActivityType.Test)
+            {
                 questions = activity.Questions.ToList();
 
-            if (activity?.Type == ActivityType.Code)
+                // Inicializace modelu odpovědí
+                foreach (var q in questions)
+                {
+                    var qa = GetQuestionAnswer(q.Id);
+                    if (q.Type == QuestionType.MultipleChoice)
+                    {
+                        foreach (var opt in q.Options)
+                        {
+                            GetOptionAnswer(q.Id, opt.Id);
+                        }
+                    }
+                }
+            }
+
+            if (activity.Type == ActivityType.Code)
                 initialCode = activity.InitialCode ?? string.Empty;
         }
         catch
@@ -219,25 +257,31 @@ else
 
         foreach (var q in questions)
         {
-            if (q.Type == QuestionType.SingleChoice)
+            var qModel = GetQuestionAnswer(q.Id);
+
+            if (q.Type == QuestionType.SingleChoice && qModel.SelectedOptionId.HasValue)
             {
-                var selected = GetQuestionAnswer(q.Id).SelectedOptionId;
-                if (selected.HasValue)
-                    studentAnswerList.Add(new StudentAnswer { QuestionId = q.Id, AnswerOptionId = selected.Value });
+                studentAnswerList.Add(new StudentAnswer { QuestionId = q.Id, AnswerOptionId = qModel.SelectedOptionId.Value });
             }
             else if (q.Type == QuestionType.MultipleChoice)
             {
-                foreach (var option in q.Options)
+                foreach (var kvp in qModel.Options)
                 {
-                    if (GetOptionAnswer(q.Id, option.Id).IsSelected)
-                        studentAnswerList.Add(new StudentAnswer { QuestionId = q.Id, AnswerOptionId = option.Id });
+                    if (kvp.Value.IsSelected)
+                        studentAnswerList.Add(new StudentAnswer { QuestionId = q.Id, AnswerOptionId = kvp.Key });
                 }
+            }
+            else if (q.Type == QuestionType.OpenText && !string.IsNullOrWhiteSpace(qModel.OpenTextAnswer))
+            {
+                studentAnswerList.Add(new StudentAnswer { QuestionId = q.Id, OpenTextAnswer = qModel.OpenTextAnswer });
+
             }
         }
 
         await SubmissionService.CreateSubmissionAsync(submission, studentAnswerList);
         Navigation.NavigateTo($"/submission-result/{submission.Id}");
     }
+
 
     // ===== FILE UPLOAD =====
     private void HandleFilesSelected(InputFileChangeEventArgs e)

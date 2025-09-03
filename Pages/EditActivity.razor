@@ -6,6 +6,7 @@
 @inject IActivityService ActivityService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject IClassService ClassService
 
 <h3>Upravit aktivitu</h3>
 
@@ -29,6 +30,30 @@ else
         <div class="mb-3">
             <label class="form-label">Popis</label>
             <InputTextArea class="form-control" @bind-Value="activityModel.Description" />
+        </div>
+
+        <!-- Třída -->
+        <!-- TŘIDA - PŘIDÁNO -->
+        <div class="mb-3">
+            <label class="form-label">Třída</label>
+            <InputSelect class="form-select" @bind-Value="activityModel.ClassId">
+                <option value="">-- Vyber třídu --</option>
+                @foreach (var c in classes)
+                {
+                    <option value="@c.Id">@c.Name</option>
+                }
+            </InputSelect>
+        </div>
+
+        <!-- Typ aktivity -->
+        <div class="mb-3">
+            <label class="form-label">Typ aktivity</label>
+            <InputSelect class="form-select" @bind-Value="activityModel.Type">
+                @foreach (var type in Enum.GetValues<ActivityType>())
+                {
+                    <option value="@type">@type</option>
+                }
+            </InputSelect>
         </div>
 
         <!-- Max body -->
@@ -99,6 +124,7 @@ else
 
     private Activity? activityModel;
     private StandaloneCodeEditor? codeEditor;
+    private List<Class> classes = new();
 
     private CodeActivityModel codeModel = new();
 
@@ -149,6 +175,7 @@ main();" }
     protected override async Task OnInitializedAsync()
     {
         activityModel = await ActivityService.GetActivityWithQuestionsAsync(ActivityId);
+        classes = await ClassService.GetAllClassesAsync();
 
         if (activityModel?.Type == ActivityType.Code)
         {
