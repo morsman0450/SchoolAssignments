@@ -240,12 +240,14 @@ else
     {
         if (activity == null) return;
 
+        // Získání ID studenta
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
         if (user.Identity == null || !user.Identity.IsAuthenticated) return;
 
         int studentId = int.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
 
+        // Vytvoření nové submisse
         var submission = new Submission
         {
             ActivityId = ActivityId,
@@ -254,33 +256,100 @@ else
         };
 
         var studentAnswerList = new List<StudentAnswer>();
+        int totalPoints = 0;
 
         foreach (var q in questions)
         {
             var qModel = GetQuestionAnswer(q.Id);
+            int questionPoints = 0;
 
             if (q.Type == QuestionType.SingleChoice && qModel.SelectedOptionId.HasValue)
             {
-                studentAnswerList.Add(new StudentAnswer { QuestionId = q.Id, AnswerOptionId = qModel.SelectedOptionId.Value });
+                var selectedOption = q.Options.FirstOrDefault(o => o.Id == qModel.SelectedOptionId.Value);
+                if (selectedOption != null)
+                {
+                    questionPoints = selectedOption.IsCorrect ? q.Points : 0;
+                    studentAnswerList.Add(new StudentAnswer
+                    {
+                        QuestionId = q.Id,
+                        AnswerOptionId = qModel.SelectedOptionId.Value,
+                        PointsAwarded = questionPoints
+                    });
+                }
             }
             else if (q.Type == QuestionType.MultipleChoice)
             {
+                int correctCount = q.Options.Count(o => o.IsCorrect);
+                double pointsPerOption = correctCount > 0 ? (double)q.Points / correctCount : 0;
+
+                double questionPointsDouble = 0;
+
                 foreach (var kvp in qModel.Options)
                 {
+                    var opt = q.Options.FirstOrDefault(o => o.Id == kvp.Key);
+                    if (opt == null) continue;
+
+                    if (opt.IsCorrect && kvp.Value.IsSelected)
+                        questionPointsDouble += pointsPerOption; // správně označeno
+                    else if (!opt.IsCorrect && kvp.Value.IsSelected)
+                        questionPointsDouble -= pointsPerOption / 2; // špatně označeno, penalizace
+                }
+
+                // Omezit body mezi 0 a max otázky
+                questionPoints = (int)Math.Min(Math.Max(Math.Round(questionPointsDouble), 0), q.Points);
+
+                // Uložit studentovy odpovědi
+                foreach (var kvp in qModel.Options)
+                {
+                    var opt = q.Options.FirstOrDefault(o => o.Id == kvp.Key);
+                    if (opt == null) continue;
+
                     if (kvp.Value.IsSelected)
-                        studentAnswerList.Add(new StudentAnswer { QuestionId = q.Id, AnswerOptionId = kvp.Key });
+                    {
+                        studentAnswerList.Add(new StudentAnswer
+                        {
+                            QuestionId = q.Id,
+                            AnswerOptionId = kvp.Key,
+                            PointsAwarded = questionPoints
+                        });
+                    }
                 }
             }
-            else if (q.Type == QuestionType.OpenText && !string.IsNullOrWhiteSpace(qModel.OpenTextAnswer))
-            {
-                studentAnswerList.Add(new StudentAnswer { QuestionId = q.Id, OpenTextAnswer = qModel.OpenTextAnswer });
 
+            else if (q.Type == QuestionType.OpenText)
+            {
+                string studentText = qModel.OpenTextAnswer?.Trim() ?? "";
+
+                if (activity.IsAutoGraded && !string.IsNullOrEmpty(q.CorrectAnswerText))
+                {
+                    questionPoints = string.Equals(studentText, q.CorrectAnswerText.Trim(), StringComparison.OrdinalIgnoreCase)
+                        ? q.Points
+                        : 0;
+                }
+
+                studentAnswerList.Add(new StudentAnswer
+                {
+                    QuestionId = q.Id,
+                    OpenTextAnswer = studentText,
+                    PointsAwarded = activity.IsAutoGraded ? questionPoints : null
+                });
             }
+
+
+            totalPoints += questionPoints;
         }
 
+        // Nastavení celkových bodů a statusu
+        submission.Points = totalPoints;
+        submission.Status = activity.IsAutoGraded ? SubmissionStatus.Graded : SubmissionStatus.Submitted;
+
+        // Uložení submisse
         await SubmissionService.CreateSubmissionAsync(submission, studentAnswerList);
+
+        // Přesměrování na výsledek
         Navigation.NavigateTo($"/submission-result/{submission.Id}");
     }
+
 
 
     // ===== FILE UPLOAD =====

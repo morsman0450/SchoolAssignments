@@ -57,13 +57,14 @@ namespace SchoolAssignments.Services
         public async Task<Submission?> GetSubmissionWithDetailsAsync(int submissionId)
         {
             return await _context.Submissions
-                .Include(s => s.Activity)
-                    .ThenInclude(a => a.Questions)
-                        .ThenInclude(q => q.Options)
-                .Include(s => s.StudentAnswers)
-                    .ThenInclude(sa => sa.AnswerOption)
-                .Include(s => s.Student)
-                .FirstOrDefaultAsync(s => s.Id == submissionId);
+                            .Include(s => s.Activity)
+                                .ThenInclude(a => a.Questions)
+                                    .ThenInclude(q => q.Options)
+                            .Include(s => s.Student)
+                            .Include(s => s.Files) // 👈 tohle je důležité
+                            .Include(s => s.StudentAnswers)
+                                .ThenInclude(sa => sa.AnswerOption)
+                            .FirstOrDefaultAsync(s => s.Id == submissionId);
         }
 
         // Načíst všechny submission pro aktivitu (pro učitele)
@@ -77,7 +78,6 @@ namespace SchoolAssignments.Services
                 .ToListAsync();
         }
 
-        // Spustit a ohodnotit submission přes Judge0
         public async Task<Submission> RunAndGradeSubmissionAsync(Submission submission)
         {
             var result = await _judge.RunCodeAsync(
@@ -86,19 +86,43 @@ namespace SchoolAssignments.Services
                 submission.StdInput
             );
 
-            // pokud je compileOutput neprázdný, použijeme ho, jinak stderr
             submission.Stderr = !string.IsNullOrEmpty(result.CompileOutput) ? result.CompileOutput : result.Stderr;
             submission.StdOutput = result.Stdout;
             submission.ExitCode = result.ExitCode;
 
-            // jednoduché tolerantní hodnocení
-            submission.Points = CompareOutput(submission.Activity.ExpectedOutput ?? "", result.Stdout ?? "") && (result.ExitCode ?? 0) == 0
-                                ? submission.Activity.MaxPoints
-                                : 0;
+            if (!string.IsNullOrEmpty(submission.Stderr) || (result.ExitCode ?? 0) != 0)
+            {
+                submission.Points = 0;
+                submission.Feedback = $"Kód nešel spustit nebo selhal:\n{submission.Stderr}";
+            }
+            else
+            {
+                var expectedLines = (submission.Activity.ExpectedOutput ?? "")
+                    .Replace("\r\n", "\n")
+                    .Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
-            submission.Feedback = submission.Points == submission.Activity.MaxPoints
-                                  ? "Výstup odpovídá očekávání."
-                                  : $"Chyba ve výstupu:\nOčekávané: {submission.Activity.ExpectedOutput}\nDostali jsme: {result.Stdout}\nChyby: {submission.Stderr}";
+                var actualLines = (result.Stdout ?? "")
+                    .Replace("\r\n", "\n")
+                    .Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+                int maxTests = expectedLines.Length;
+                int passed = 0;
+
+                for (int i = 0; i < maxTests; i++)
+                {
+                    string expected = expectedLines[i];
+                    string actual = i < actualLines.Length ? actualLines[i] : "";
+
+                    if (CompareOutput(expected, actual))
+                        passed++;
+                }
+
+                submission.Points = (int)Math.Round((double)passed / maxTests * submission.Activity.MaxPoints);
+
+                submission.Feedback = submission.Points == submission.Activity.MaxPoints
+                    ? "Výstup odpovídá očekávání."
+                    : $"Správně {passed}/{maxTests} testů.\n\nOčekávaný výstup:\n{submission.Activity.ExpectedOutput}\n\nDostal jsi:\n{result.Stdout}";
+            }
 
             submission.Status = SubmissionStatus.Graded;
             submission.SubmittedAt = DateTime.UtcNow;
@@ -114,31 +138,31 @@ namespace SchoolAssignments.Services
         }
 
 
+
         // --- Tolerantní porovnání ---
         private bool CompareOutput(string expected, string actual, double numberTolerance = 1e-6)
         {
             expected ??= "";
             actual ??= "";
 
-            string Normalize(string s)
-            {
-                s = s.Replace("\r\n", "\n").Replace("\r", "\n");
-                var lines = s.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-                             .Select(line => line.Trim());
-                return Regex.Replace(string.Join("\n", lines), @"\s+", " ").ToLower();
-            }
+            expected = expected.Trim();
+            actual = actual.Trim();
 
-            expected = Normalize(expected);
-            actual = Normalize(actual);
-
-            if (double.TryParse(expected, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var e) &&
-                double.TryParse(actual, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var a))
+            // číselné porovnání s tolerancí
+            if (double.TryParse(expected, System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out var e) &&
+                double.TryParse(actual, System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out var a))
             {
                 return Math.Abs(e - a) <= numberTolerance;
             }
 
-            return expected == actual;
+            // normální text porovnání (case-insensitive + trim víc mezer)
+            string Normalize(string s) => Regex.Replace(s, @"\s+", " ").Trim().ToLower();
+
+            return Normalize(expected) == Normalize(actual);
         }
+
 
 
         public async Task UpdateSubmissionAsync(Submission submission)

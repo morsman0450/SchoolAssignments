@@ -1,4 +1,4 @@
-﻿@page "/register"
+﻿@page "/create-user"
 @using SchoolAssignments.ViewModels
 @using SchoolAssignments.Models
 @using SchoolAssignments.Services
@@ -81,7 +81,7 @@
                                 {
                                     <span class="spinner-border spinner-border-sm me-2"></span>
                                 }
-                                Zaregistrovat se
+                                Vytvořit uživatele
                             </button>
                         </div>
                     </EditForm>
@@ -114,12 +114,11 @@
 
             if (success == true)
             {
-                successMessage = "Registrace byla úspěšná! Můžete se nyní přihlásit.";
-                registerModel = new RegisterModel();
+                // Jen zobrazíme zprávu, žádné přesměrování
+                successMessage = $"Jooo, hezky! Účet pro {registerModel.FirstName} {registerModel.LastName} byl vytvořen.";
 
-                // Přesměrování na login po 2 sekundách
-                await Task.Delay(2000);
-                Navigation.NavigateTo("/login");
+                // Vyčistíme formulář
+                registerModel = new RegisterModel();
             }
             else
             {
@@ -136,4 +135,5 @@
             isLoading = false;
         }
     }
+
 }

@@ -32,15 +32,14 @@ else
             <InputTextArea class="form-control" @bind-Value="activityModel.Description" />
         </div>
 
-        <!-- Třída -->
-        <!-- TŘIDA - PŘIDÁNO -->
+        <!-- Třída + předmět -->
         <div class="mb-3">
-            <label class="form-label">Třída</label>
-            <InputSelect class="form-select" @bind-Value="activityModel.ClassId">
-                <option value="">-- Vyber třídu --</option>
-                @foreach (var c in classes)
+            <label class="form-label">Třída a předmět</label>
+            <InputSelect class="form-select" @bind-Value="activityModel.ClassTeacherSubjectId">
+                <option value="">-- Vyber třídu a předmět --</option>
+                @foreach (var cts in classTeacherSubjects)
                 {
-                    <option value="@c.Id">@c.Name</option>
+                    <option value="@cts.Id">@cts.Class.Name - @cts.Subject.Name</option>
                 }
             </InputSelect>
         </div>
@@ -124,11 +123,10 @@ else
 
     private Activity? activityModel;
     private StandaloneCodeEditor? codeEditor;
-    private List<Class> classes = new();
+    private List<ClassTeacherSubject> classTeacherSubjects = new();
 
     private CodeActivityModel codeModel = new();
 
-    // Dropdown jazyk
     private string SelectedLanguage
     {
         get => codeModel.Language;
@@ -142,7 +140,6 @@ else
         }
     }
 
-    // Šablony kódu
     private readonly Dictionary<string, string> codeTemplates = new()
     {
         { "csharp", @"using System;
@@ -175,11 +172,10 @@ main();" }
     protected override async Task OnInitializedAsync()
     {
         activityModel = await ActivityService.GetActivityWithQuestionsAsync(ActivityId);
-        classes = await ClassService.GetAllClassesAsync();
+        classTeacherSubjects = await ClassService.GetAllClassTeacherSubjectsAsync();
 
         if (activityModel?.Type == ActivityType.Code)
         {
-            // Nastav jazyk
             codeModel.Language = activityModel.LanguageId switch
             {
                 51 => "csharp",
@@ -189,11 +185,9 @@ main();" }
                 _ => "csharp"
             };
 
-            // Pokud má uložený kód, použij ho, jinak šablonu
-            if (!string.IsNullOrWhiteSpace(activityModel.InitialCode))
-                codeModel.InitialCode = activityModel.InitialCode;
-            else if (codeTemplates.TryGetValue(codeModel.Language, out var template))
-                codeModel.InitialCode = template;
+            codeModel.InitialCode = !string.IsNullOrWhiteSpace(activityModel.InitialCode)
+                ? activityModel.InitialCode
+                : codeTemplates.GetValueOrDefault(codeModel.Language, "// Sem napište svůj kód...");
         }
     }
 
@@ -207,7 +201,6 @@ main();" }
 
     private async Task ApplyLanguageChange(string newLang)
     {
-        // Přepni šablonu
         if (codeTemplates.TryGetValue(newLang, out var template))
         {
             codeModel.InitialCode = template;
@@ -215,7 +208,6 @@ main();" }
                 await codeEditor.SetValue(template);
         }
 
-        // Přepni jazyk modelu
         if (codeEditor is not null)
         {
             var model = await codeEditor.GetModel();

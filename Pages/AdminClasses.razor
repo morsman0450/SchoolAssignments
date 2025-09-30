@@ -1,0 +1,63 @@
+﻿@page "/admin/classes"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@inject IClassService ClassService
+@inject IJSRuntime JS
+
+<h3>Správa tříd</h3>
+
+<div class="mb-3">
+    <label class="form-label">Nová třída</label>
+    <InputText @bind-Value="newClassName" class="form-control" />
+</div>
+<button class="btn btn-primary mb-3" @onclick="CreateClass">Vytvořit třídu</button>
+
+@if (classes is not null)
+{
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Název</th>
+                <th>Akce</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var c in classes)
+            {
+                <tr>
+                    <td>@c.Id</td>
+                    <td>@c.Name</td>
+                    <td>
+                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteClass(c.Id)">Smazat</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Class> classes = new();
+    private string newClassName = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        classes = await ClassService.GetAllClassesAsync();
+    }
+
+    private async Task CreateClass()
+    {
+        if (string.IsNullOrWhiteSpace(newClassName)) return;
+
+        var c = await ClassService.CreateClassAsync(new Class { Name = newClassName, IsActive = true });
+        classes.Add(c);
+        newClassName = string.Empty;
+    }
+
+    private async Task DeleteClass(int id)
+    {
+        await ClassService.DeleteClassAsync(id);
+        classes = classes.Where(c => c.Id != id).ToList();
+    }
+}

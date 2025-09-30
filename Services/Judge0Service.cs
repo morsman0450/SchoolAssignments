@@ -15,14 +15,18 @@
 
         public async Task<Judge0RunResult> RunCodeAsync(int languageId, string sourceCode, string? stdin)
         {
-            var payload = new
+            var payload = new Dictionary<string, object?>
             {
-                language_id = languageId,
-                source_code = sourceCode,
-                stdin = stdin ?? ""
+                ["language_id"] = languageId,
+                ["source_code"] = sourceCode,
+                ["stdin"] = stdin ?? ""
             };
 
-            using var res = await _http.PostAsJsonAsync("submissions?base64_encoded=false&wait=true", payload);
+            using var res = await _http.PostAsJsonAsync(
+                "submissions?base64_encoded=false&wait=true",
+                payload
+            );
+
             res.EnsureSuccessStatusCode();
 
             using var stream = await res.Content.ReadAsStreamAsync();
@@ -43,6 +47,7 @@
                 StatusDescription = status
             };
         }
+
 
     }
 

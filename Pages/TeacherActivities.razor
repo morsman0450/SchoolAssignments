@@ -14,17 +14,42 @@
 }
 else if (!activities.Any())
 {
+    <div class="oi-align-right mb-2">
+        <button class="btn btn-sm btn-primary" @onclick="CreateActivity">Vytvořit aktivitu</button>
+    </div>
     <p>Zatím jsi nevytvořil žádné aktivity.</p>
 }
 else
 {
-    <div class="oi-align-right mb-2">
+    <div class="oi-align-right mb-3 d-flex gap-2">
         <button class="btn btn-sm btn-primary" @onclick="CreateActivity">Vytvořit aktivitu</button>
+
+        <select class="form-select w-auto" @bind="selectedSubject">
+            <option value="">Všechny předměty</option>
+            @foreach (var subj in subjects)
+            {
+                <option value="@subj">@subj</option>
+            }
+        </select>
+
+        <select class="form-select w-auto" @bind="selectedDueFilter">
+            <option value="">Všechny termíny</option>
+            <option value="upcoming">Nadcházející</option>
+            <option value="overdue">Po termínu</option>
+            <option value="none">Bez termínu</option>
+        </select>
+
+        <select class="form-select w-auto" @bind="selectedReviewFilter">
+            <option value="">Všechny</option>
+            <option value="reviewed">Opravené</option>
+            <option value="notreviewed">Neopravené</option>
+        </select>
     </div>
 
     <table class="table table-striped">
         <thead>
             <tr>
+                <th>Předmět</th>
                 <th>Název</th>
                 <th>Vytvořeno</th>
                 <th>Termín odevzdání</th>
@@ -32,10 +57,11 @@ else
             </tr>
         </thead>
         <tbody>
-            @foreach (var a in activities)
+            @foreach (var a in filteredActivities)
             {
                 var localDue = a.DueDate?.ToLocalTime();
                 <tr class="@GetDueDateRowClass(localDue)">
+                    <td>@a.ClassTeacherSubject.Subject.Name</td>
                     <td>@a.Title</td>
                     <td>@a.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
                     <td>
@@ -71,6 +97,11 @@ else
 
 @code {
     private List<Activity>? activities;
+    private List<string> subjects = new();
+
+    private string? selectedSubject;
+    private string? selectedDueFilter;
+    private string? selectedReviewFilter;
 
     protected override async Task OnInitializedAsync()
     {
@@ -81,12 +112,35 @@ else
         if (int.TryParse(userId, out var teacherId))
         {
             activities = await ActivityService.GetTeacherActivitiesAsync(teacherId);
+
+            // naplnění seznamu předmětů
+            subjects = activities
+                .Select(a => a.ClassTeacherSubject.Subject.Name)
+                .Distinct()
+                .OrderBy(s => s)
+                .ToList();
         }
         else
         {
             activities = new List<Activity>();
         }
     }
+
+    // Filtrování
+    private IEnumerable<Activity> filteredActivities => activities
+        .Where(a =>
+            (string.IsNullOrEmpty(selectedSubject) || a.ClassTeacherSubject.Subject.Name == selectedSubject) &&
+            (string.IsNullOrEmpty(selectedDueFilter) ||
+                (selectedDueFilter == "upcoming" && a.DueDate != null && a.DueDate > DateTime.UtcNow) ||
+                (selectedDueFilter == "overdue" && a.DueDate != null && a.DueDate < DateTime.UtcNow) ||
+                (selectedDueFilter == "none" && a.DueDate == null)
+            ) &&
+            (string.IsNullOrEmpty(selectedReviewFilter) ||
+                (selectedReviewFilter == "reviewed" && a.Submissions.Any(s => s.Status == SubmissionStatus.Graded)) ||
+(selectedReviewFilter == "notreviewed" && a.Submissions.Any(s => s.Status != SubmissionStatus.Graded))
+
+            )
+        );
 
     private void EditActivity(int id) => Navigation.NavigateTo($"/edit-activity/{id}");
     private void CreateActivity() => Navigation.NavigateTo($"/create-activity");
@@ -103,6 +157,11 @@ else
         if (int.TryParse(userId, out var teacherId))
         {
             activities = await ActivityService.GetTeacherActivitiesAsync(teacherId);
+            subjects = activities
+                .Select(a => a.ClassTeacherSubject.Subject.Name)
+                .Distinct()
+                .OrderBy(s => s)
+                .ToList();
         }
         StateHasChanged();
     }
@@ -129,7 +188,6 @@ else
 
     private int GetDaysUntilDue(DateTime dueDate)
     {
-        // vždy převést uložený UTC čas na lokální
         var localDue = dueDate.ToLocalTime();
         return (int)(localDue.Date - DateTime.Now.Date).TotalDays;
     }

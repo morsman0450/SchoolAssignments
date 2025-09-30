@@ -1,0 +1,91 @@
+﻿@page "/admin/edit-teacher/{TeacherId:int}"
+@using Microsoft.EntityFrameworkCore
+@using SchoolAssignments.Data
+@using SchoolAssignments.Models
+@inject AppDbContext Db
+@inject NavigationManager Navigation
+
+<h3>Přiřadit třídy a předměty učiteli</h3>
+
+<div>
+    <label>Učitel: @teacher.FirstName @teacher.LastName</label>
+</div>
+
+<div class="mb-3">
+    <label>Třída</label>
+    <InputSelect @bind-Value="selectedClassId" class="form-select">
+        <option value="0">-- Vyber třídu --</option>
+        @foreach (var c in classes)
+        {
+            <option value="@c.Id">@c.Name</option>
+        }
+    </InputSelect>
+</div>
+
+<div class="mb-3">
+    <label>Předmět</label>
+    <InputSelect @bind-Value="selectedSubjectId" class="form-select">
+        <option value="0">-- Vyber předmět --</option>
+        @foreach (var s in subjects)
+        {
+            <option value="@s.Id">@s.Name</option>
+        }
+    </InputSelect>
+</div>
+
+<button class="btn btn-success" @onclick="AssignClassTeacherSubject">Přiřadit</button>
+
+<h4 class="mt-4">Aktuální přiřazení</h4>
+<ul>
+    @foreach (var cts in teacherSubjects)
+    {
+        <li>@cts.Class.Name - @cts.Subject.Name</li>
+    }
+</ul>
+
+@code {
+    [Parameter] public int TeacherId { get; set; }
+
+    private User teacher = null!;
+    private List<Class> classes = new();
+    private List<Subject> subjects = new();
+    private List<ClassTeacherSubject> teacherSubjects = new();
+
+    private int selectedClassId;
+    private int selectedSubjectId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        teacher = await Db.Users.FindAsync(TeacherId) ?? throw new Exception("Učitel nenalezen");
+        classes = await Db.Classes.ToListAsync();
+        subjects = await Db.Subjects.ToListAsync();
+        teacherSubjects = await Db.ClassTeacherSubjects
+                               .Include(cts => cts.Class)
+                               .Include(cts => cts.Subject)
+                               .Where(cts => cts.TeacherId == TeacherId)
+                               .ToListAsync();
+    }
+
+    private async Task AssignClassTeacherSubject()
+    {
+        if (selectedClassId != 0 && selectedSubjectId != 0)
+        {
+            var exists = await Db.ClassTeacherSubjects
+                                 .AnyAsync(cts => cts.ClassId == selectedClassId
+                                                 && cts.SubjectId == selectedSubjectId
+                                                 && cts.TeacherId == TeacherId);
+            if (!exists)
+            {
+                var cts = new ClassTeacherSubject
+                {
+                    ClassId = selectedClassId,
+                    SubjectId = selectedSubjectId,
+                    TeacherId = TeacherId
+                };
+                Db.ClassTeacherSubjects.Add(cts);
+                await Db.SaveChangesAsync();
+                teacherSubjects.Add(cts);
+            }
+        }
+    }
+}

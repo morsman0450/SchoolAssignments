@@ -58,7 +58,10 @@
                             </div>
                             <div class="mb-3">
                                 <small class="text-muted">Počet aktivit</small>
-                                <p class="mb-0 text-muted">@(classItem.Activities?.Count ?? 0) aktivit</p>
+                                <p class="mb-0 text-muted">
+                                    @(classItem.ClassTeacherSubjects?.SelectMany(cts => cts.Activities).Count() ?? 0) aktivit
+                                </p>
+
                             </div>
                         </div>
                         <div class="card-footer bg-transparent border-0 pt-0">

@@ -62,3 +62,204 @@ a, .btn-link {
     .blazor-error-boundary::after {
         content: "An error has occurred."
     }
+
+
+:root {
+    --primary-color: #4e73df;
+    --secondary-color: #6f42c1;
+    --success-color: #1cc88a;
+    --light-bg: #f8f9fc;
+    --sidebar-width: 250px;
+    --topbar-height: 70px;
+}
+
+body {
+    font-family: 'Nunito', 'Segoe UI', system-ui, sans-serif;
+    background-color: #f5f7fb;
+    overflow-x: hidden;
+}
+
+/* Hlavní layout */
+.page {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* Sidebar - lepší vzhled */
+.sidebar {
+    width: var(--sidebar-width);
+    background: linear-gradient(180deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    color: white;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+    z-index: 100;
+    transition: all 0.3s;
+}
+
+.nav-menu {
+    padding: 1rem 0;
+    height: 100%;
+}
+
+    .nav-menu .nav-item {
+        margin: 0.5rem 0.8rem;
+        border-radius: 0.5rem;
+        overflow: hidden;
+    }
+
+    .nav-menu .nav-link {
+        color: rgba(255, 255, 255, 0.8) !important;
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        transition: all 0.2s;
+    }
+
+        .nav-menu .nav-link:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white !important;
+            transform: translateX(5px);
+        }
+
+        .nav-menu .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.15);
+            color: white !important;
+            font-weight: 600;
+        }
+
+        .nav-menu .nav-link i {
+            margin-right: 0.75rem;
+            width: 1.5rem;
+            text-align: center;
+        }
+
+/* Hlavní obsah */
+main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Top bar */
+.top-bar {
+    height: var(--topbar-height);
+    background: white;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    z-index: 99;
+    padding: 0.5rem 1.5rem;
+}
+
+.brand {
+    font-weight: 800;
+    color: var(--primary-color);
+    font-size: 1.5rem;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+}
+
+    .brand:hover {
+        color: var(--secondary-color);
+    }
+
+/* Tlaèítko uživatele */
+.user-dropdown .btn {
+    border: none;
+    background: var(--light-bg);
+    border-radius: 50px;
+    padding: 0.5rem 1.2rem;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s;
+}
+
+    .user-dropdown .btn:hover {
+        background: #e9ecef;
+        transform: translateY(-2px);
+    }
+
+.user-dropdown .dropdown-menu {
+    border: none;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+}
+
+.user-dropdown .dropdown-item {
+    border-radius: 0.35rem;
+    padding: 0.6rem 1rem;
+    display: flex;
+    align-items: center;
+}
+
+    .user-dropdown .dropdown-item i {
+        margin-right: 0.5rem;
+        width: 1.2rem;
+        text-align: center;
+    }
+
+    .user-dropdown .dropdown-item.logout {
+        color: #e74a3b;
+    }
+
+        .user-dropdown .dropdown-item.logout:hover {
+            background-color: #f8d7da;
+        }
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: var(--primary-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
+/* Obsah stránky */
+.content {
+    flex: 1;
+    padding: 2rem;
+    overflow-y: auto;
+    background-color: var(--light-bg);
+}
+
+/* Responzivní design */
+@media (max-width: 992px) {
+    .sidebar {
+        width: 80px;
+    }
+
+    .nav-menu span:not(.fa-2x) {
+        display: none;
+    }
+
+    .nav-menu i {
+        margin-right: 0;
+        font-size: 1.2rem;
+    }
+
+    .nav-menu .text-center span {
+        display: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .page {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+    }
+
+    .top-bar {
+        padding: 0.5rem;
+    }
+
+    .content {
+        padding: 1rem;
+    }
+}

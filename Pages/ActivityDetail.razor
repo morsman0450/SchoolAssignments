@@ -16,7 +16,11 @@ else
         <div class="card-body">
             <h4>@activity.Title</h4>
             <p><strong>Popis:</strong> @activity.Description</p>
-            <p><strong>Třída:</strong> @activity.Class?.Name</p>
+            <p>
+                <strong>Třída:</strong> @(activity.ClassTeacherSubject?.Class?.Name ?? "neuvedeno") <br />
+                <strong>Předmět:</strong> @(activity.ClassTeacherSubject?.Subject?.Name ?? "neuvedeno")
+
+            </p>
             <p><strong>Typ:</strong> @activity.Type</p>
             <p><strong>Maximální body:</strong> @activity.MaxPoints</p>
             <p><strong>Termín odevzdání:</strong> @(activity.DueDate?.ToString("g") ?? "neuvedeno")</p>
@@ -52,11 +56,10 @@ else
                     </div>
                 }
             }
-
+        </div>
     </div>
-</div>
 
-<button class="btn btn-secondary mt-3" @onclick="GoBack">Zpět</button>
+    <button class="btn btn-secondary mt-3" @onclick="GoBack">Zpět</button>
 }
 
 @code {

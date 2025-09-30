@@ -21,6 +21,8 @@ builder.Services.AddScoped<ISubmissionService, SubmissionService>();
 builder.Services.AddAuthorizationCore();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IActivityService, ActivityService>();
+builder.Services.AddScoped<ISubjectService, SubjectService>();
+
 builder.Services.AddScoped<CustomAuthenticationStateProvider>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<AuthenticationStateProvider>(provider =>

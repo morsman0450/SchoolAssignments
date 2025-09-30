@@ -1,0 +1,72 @@
+﻿@page "/admin/edit-student/{StudentId:int}"
+@using Microsoft.EntityFrameworkCore
+@using SchoolAssignments.Data
+@using SchoolAssignments.Models
+@inject AppDbContext Db
+@inject NavigationManager Navigation
+
+<h3>Přiřadit třídu studentovi</h3>
+
+<div>
+    <label>Student: @student.FirstName @student.LastName</label>
+</div>
+
+<div class="mb-3">
+    <label>Třída</label>
+    <InputSelect @bind-Value="selectedClassId" class="form-select">
+        <option value="0">-- Vyber třídu --</option>
+        @foreach (var c in classes)
+        {
+            <option value="@c.Id">@c.Name</option>
+        }
+    </InputSelect>
+</div>
+
+<button class="btn btn-success" @onclick="AssignClassStudent">Přiřadit</button>
+
+<h4 class="mt-4">Aktuální přiřazení</h4>
+<ul>
+    @foreach (var cs in studentClasses)
+    {
+        <li>@cs.Class.Name</li>
+    }
+</ul>
+
+@code {
+    [Parameter] public int StudentId { get; set; }
+
+    private User student = null!;
+    private List<Class> classes = new();
+    private List<ClassStudent> studentClasses = new();
+    private int selectedClassId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        student = await Db.Users.FindAsync(StudentId) ?? throw new Exception("Student nenalezen");
+        classes = await Db.Classes.ToListAsync();
+        studentClasses = await Db.ClassStudents
+                                 .Include(cs => cs.Class)
+                                 .Where(cs => cs.StudentId == StudentId)
+                                 .ToListAsync();
+    }
+
+    private async Task AssignClassStudent()
+    {
+        if (selectedClassId != 0)
+        {
+            var exists = await Db.ClassStudents
+                                 .AnyAsync(cs => cs.ClassId == selectedClassId && cs.StudentId == StudentId);
+            if (!exists)
+            {
+                var cs = new ClassStudent
+                {
+                    ClassId = selectedClassId,
+                    StudentId = StudentId
+                };
+                Db.ClassStudents.Add(cs);
+                await Db.SaveChangesAsync();
+                studentClasses.Add(cs);
+            }
+        }
+    }
+}

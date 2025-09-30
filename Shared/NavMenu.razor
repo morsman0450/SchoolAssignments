@@ -1,68 +1,90 @@
 ﻿@using System.Security.Claims
 @inject NavigationManager Navigation
 
-<div class="@NavMenuCssClass" @onclick="ToggleNavMenu">
-    <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="oi oi-home" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
+<div class="nav-menu">
+    <div class="text-center p-3 mb-2">
+        <i class="fas fa-graduation-cap fa-2x"></i>
+        <span class="ms-2 fw-bold">Menu</span>
+    </div>
 
-        <!-- ✅ Student -->
-        <AuthorizeView Roles="Student">
-            <Authorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="student-activities">
-                        <span class="oi oi-book" aria-hidden="true"></span> Moje úkoly
-                    </NavLink>
-                    <NavLink class="nav-link" href="my-grades">
-                        <span class="oi oi-book" aria-hidden="true"></span> Moje známky
-                    </NavLink>
-                </div>
-            </Authorized>
-        </AuthorizeView>
+    <div class="nav-item">
+        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+            <i class="fas fa-home"></i>
+            <span>Home</span>
+        </NavLink>
+    </div>
 
-        <!-- ✅ Teacher -->
-        <AuthorizeView Roles="Teacher">
-            <Authorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="teacher-activities">
-                        <span class="oi oi-pencil" aria-hidden="true"></span> Správa aktivit
-                    </NavLink>
-                    <NavLink class="nav-link" href="teacher-classes">
-                        <span class="oi oi-pencil" aria-hidden="true"></span> Přehled tříd
-                    </NavLink>
-                </div>
-            </Authorized>
-        </AuthorizeView>
+    <!-- Student -->
+    <AuthorizeView Roles="Student">
+        <Authorized>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="student-activities">
+                    <i class="fas fa-tasks"></i>
+                    <span>Moje úkoly</span>
+                </NavLink>
+            </div>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="my-grades">
+                    <i class="fas fa-star"></i>
+                    <span>Moje známky</span>
+                </NavLink>
+            </div>
+        </Authorized>
+    </AuthorizeView>
 
-        <!-- ✅ Admin -->
-        <AuthorizeView Roles="Admin">
-            <Authorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="admin-dashboard">
-                        <span class="oi oi-cog" aria-hidden="true"></span> Administrace
-                    </NavLink>
-                </div>
-            </Authorized>
-        </AuthorizeView>
+    <!-- Teacher -->
+    <AuthorizeView Roles="Teacher">
+        <Authorized>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="teacher-activities">
+                    <i class="fas fa-book"></i>
+                    <span>Správa aktivit</span>
+                </NavLink>
+            </div>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="teacher-classes">
+                    <i class="fas fa-users"></i>
+                    <span>Přehled tříd</span>
+                </NavLink>
+            </div>
+        </Authorized>
+    </AuthorizeView>
 
-        <!-- ✅ Společné položky -->
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="about">
-                <span class="oi oi-info" aria-hidden="true"></span> O aplikaci
-            </NavLink>
-        </div>
-    </nav>
+    <!-- Admin -->
+    <AuthorizeView Roles="Admin">
+        <Authorized>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="admin-dashboard">
+                    <i class="fas fa-cog"></i>
+                    <span>Administrace</span>
+                </NavLink>
+            </div>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="admin/users">
+                    <i class="fas fa-user-cog"></i>
+                    <span>Uživatelé</span>
+                </NavLink>
+            </div>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="admin/classes">
+                    <i class="fas fa-chalkboard"></i>
+                    <span>Třídy</span>
+                </NavLink>
+            </div>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="admin/subjects">
+                    <i class="fas fa-book-open"></i>
+                    <span>Předměty</span>
+                </NavLink>
+            </div>
+        </Authorized>
+    </AuthorizeView>
+
+    <!-- Společné položky -->
+    <div class="nav-item">
+        <NavLink class="nav-link" href="about">
+            <i class="fas fa-info-circle"></i>
+            <span>O aplikaci</span>
+        </NavLink>
+    </div>
 </div>
-
-@code {
-    private bool collapseNavMenu = true;
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
-
-    private void ToggleNavMenu()
-    {
-        collapseNavMenu = !collapseNavMenu;
-    }
-}

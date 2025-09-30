@@ -8,13 +8,48 @@
 
 <h3>Moje aktivity</h3>
 
-@if (activities == null)
+<!-- Přidané filtrovací UI -->
+<div class="row mb-3">
+    <div class="col-md-4">
+        <label class="form-label">Vyhledat podle názvu:</label>
+        <input type="text" class="form-control" @bind="searchTerm" @oninput="OnSearchChanged" placeholder="Zadejte název aktivity..." />
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Filtr podle předmětu:</label>
+        <select class="form-select" value="@selectedSubjectId" @onchange="OnSubjectFilterChanged">
+            <option value="">Všechny předměty</option>
+            @if (activities != null)
+            {
+                @foreach (var subject in activities.Where(a => a.ClassTeacherSubject?.Subject != null)
+                            .GroupBy(a => a.ClassTeacherSubject.Subject.Id)
+                            .Select(g => g.First().ClassTeacherSubject.Subject))
+                {
+                    <option value="@subject.Id">@subject.Name</option>
+                }
+            }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Filtr podle stavu:</label>
+        <select class="form-select" value="@selectedStatus" @onchange="OnStatusFilterChanged">
+            <option value="all">Všechny aktivity</option>
+            <option value="active">Aktivní</option>
+            <option value="overdue">Po termínu</option>
+            <option value="completed">Dokončené</option>
+        </select>
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+        <button type="button" class="btn btn-secondary" @onclick="ClearFilters">Vymazat filtry</button>
+    </div>
+</div>
+
+@if (filteredActivities == null)
 {
     <p><em>Načítám...</em></p>
 }
-else if (!activities.Any())
+else if (!filteredActivities.Any())
 {
-    <p>Nemáte žádné aktivity.</p>
+    <p>Nemáte žádné aktivity podle zadaných filtrů.</p>
 }
 else
 {
@@ -22,6 +57,7 @@ else
         <thead>
             <tr>
                 <th>Název</th>
+                <th>Předmět</th>
                 <th>Vytvořeno</th>
                 <th>Termín odevzdání</th>
                 <th>Pokusy</th>
@@ -29,14 +65,16 @@ else
             </tr>
         </thead>
         <tbody>
-            @foreach (var a in activities)
+            @foreach (var a in filteredActivities)
             {
-                var usedAttempts = a.UsedAttempts; // počet odevzdaných pokusů
-                var maxAttempts = a.MaxAttempts;   // max pokusů, 0 = neomezeně
+                var usedAttempts = a.UsedAttempts;
+                var maxAttempts = a.MaxAttempts;
                 var attemptsExceeded = maxAttempts > 0 && usedAttempts >= maxAttempts;
+                var isOverdue = a.DueDate.HasValue && IsOverdue(a.DueDate.Value);
 
                 <tr class="@GetDueDateRowClass(a.DueDate, attemptsExceeded)">
                     <td>@a.Title</td>
+                    <td>@(a.ClassTeacherSubject?.Subject?.Name ?? "neuvedeno")</td>
                     <td>@a.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
                     <td>
                         @if (a.DueDate.HasValue)
@@ -44,7 +82,7 @@ else
                             var localDue = a.DueDate.Value.ToLocalTime();
                             <span class="@GetDueDateBadgeClass(localDue, attemptsExceeded)">
                                 @localDue.ToString("dd.MM.yyyy HH:mm")
-                                @if (GetDaysUntilDue(localDue) >= 0)
+                                @if (!IsOverdue(localDue))
                                 {
                                     <small class="ms-1">(@GetDueDateText(localDue))</small>
                                 }
@@ -58,25 +96,21 @@ else
                         {
                             <span class="text-muted">Bez termínu</span>
                         }
-                    </td>
-                    <td>
-                        @if (maxAttempts == 0)
-                        {
-                            @usedAttempts
-                        }
-                        else
-                        {
-                            @(maxAttempts == 0 ? $"{usedAttempts}" : $"{usedAttempts} / {maxAttempts}")
-
-                                }
-                    </td>
-                    <td>
-                        <button class="btn btn-sm btn-primary" @onclick="@(() => TakeActivity(a.Id))" disabled="@(attemptsExceeded || (a.DueDate.HasValue && GetDaysUntilDue(a.DueDate.Value) < 0))">
-                            Začít
-                        </button>
-                    </td>
-                </tr>
-            }
+                </td>
+                <td>
+                    @(maxAttempts == 0
+                                    ? usedAttempts.ToString()
+                                    : $"{usedAttempts} / {maxAttempts}")
+            </td>
+            <td>
+                <button class="btn btn-sm btn-primary"
+                        @onclick="@(() => TakeActivity(a.Id))"
+                        disabled="@(attemptsExceeded || isOverdue)">
+                    Začít
+                </button>
+            </td>
+        </tr>
+                }
         </tbody>
     </table>
 }
@@ -133,7 +167,12 @@ else
 </style>
 
 @code {
-    private List<Activity>? activities;
+    private List<Activity>? activities;          // všechny aktivity studenta
+    private List<Activity>? filteredActivities;  // filtrovaný výběr
+
+    private int? selectedSubjectId;              // vybraný předmět pro filtr
+    private string searchTerm = string.Empty;    // vyhledávání podle názvu
+    private string selectedStatus = "all";       // filtr podle stavu
 
     protected override async Task OnInitializedAsync()
     {
@@ -144,22 +183,93 @@ else
         if (int.TryParse(userId, out var studentId))
         {
             activities = await ActivityService.GetStudentActivitiesAsync(studentId);
+            ApplyFilters(); // Aplikujeme filtry při inicializaci
         }
         else
         {
             activities = new List<Activity>();
+            filteredActivities = new List<Activity>();
         }
+    }
+
+    private void ApplyFilters()
+    {
+        if (activities == null) return;
+
+        filteredActivities = activities
+            .Where(a =>
+                (string.IsNullOrWhiteSpace(searchTerm) ||
+                 a.Title.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) &&
+                (!selectedSubjectId.HasValue ||
+                 a.ClassTeacherSubject?.SubjectId == selectedSubjectId.Value) &&
+                (selectedStatus == "all" ||
+                 (selectedStatus == "active" && !IsOverdue(a) && !IsCompleted(a)) ||
+                 (selectedStatus == "overdue" && IsOverdue(a)) ||
+                 (selectedStatus == "completed" && IsCompleted(a)))
+            )
+            .OrderByDescending(a => IsOverdue(a)) // Po termínu dolů
+            .ThenBy(a => a.DueDate ?? DateTime.MaxValue) // Pak seřadit podle termínu
+            .ToList();
+    }
+
+    private bool IsOverdue(Activity activity)
+    {
+        return activity.DueDate.HasValue && IsOverdue(activity.DueDate.Value);
+    }
+
+    private bool IsOverdue(DateTime dueDate)
+    {
+        var localDue = dueDate.ToLocalTime();
+        return localDue < DateTime.Now;
+    }
+
+    private bool IsCompleted(Activity activity)
+    {
+        var maxAttempts = activity.MaxAttempts;
+        var usedAttempts = activity.UsedAttempts;
+        return maxAttempts > 0 && usedAttempts >= maxAttempts;
+    }
+
+    // Nové event handlery pro filtry
+    private async Task OnSearchChanged(ChangeEventArgs e)
+    {
+        searchTerm = e.Value?.ToString() ?? string.Empty;
+        ApplyFilters();
+        StateHasChanged();
+    }
+
+    private async Task OnSubjectFilterChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var subjectId))
+        {
+            selectedSubjectId = subjectId;
+        }
+        else
+        {
+            selectedSubjectId = null;
+        }
+        ApplyFilters();
+        StateHasChanged();
+    }
+
+    private async Task OnStatusFilterChanged(ChangeEventArgs e)
+    {
+        selectedStatus = e.Value?.ToString() ?? "all";
+        ApplyFilters();
+        StateHasChanged();
+    }
+
+    private void ClearFilters()
+    {
+        searchTerm = string.Empty;
+        selectedSubjectId = null;
+        selectedStatus = "all";
+        ApplyFilters();
     }
 
     private void TakeActivity(int id)
     {
         Navigation.NavigateTo($"/take-activity/{id}");
-    }
-
-    private int GetDaysUntilDue(DateTime dueDate)
-    {
-        var localDue = dueDate.ToLocalTime();
-        return (int)(localDue.Date - DateTime.Now.Date).TotalDays;
     }
 
     private string GetDueDateRowClass(DateTime? dueDate, bool attemptsExceeded = false)
@@ -169,11 +279,10 @@ else
         if (dueDate.HasValue)
         {
             var localDue = dueDate.Value.ToLocalTime();
-            var daysUntil = GetDaysUntilDue(localDue);
 
-            if (daysUntil < 0) classes.Add("due-overdue");
-            else if (daysUntil <= 1) classes.Add("due-urgent");
-            else if (daysUntil <= 3) classes.Add("due-soon");
+            if (IsOverdue(localDue)) classes.Add("due-overdue");
+            else if (GetHoursUntilDue(localDue) <= 24) classes.Add("due-urgent");
+            else if (GetHoursUntilDue(localDue) <= 72) classes.Add("due-soon");
         }
         if (attemptsExceeded) classes.Add("attempts-exceeded");
 
@@ -182,22 +291,29 @@ else
 
     private string GetDueDateBadgeClass(DateTime dueDate, bool attemptsExceeded = false)
     {
-        var daysUntil = GetDaysUntilDue(dueDate);
-
         if (attemptsExceeded) return "badge-due-overdue";
-        if (daysUntil < 0) return "badge-due-overdue";
-        if (daysUntil <= 1) return "badge-due-urgent";
-        if (daysUntil <= 3) return "badge-due-soon";
+        if (IsOverdue(dueDate)) return "badge-due-overdue";
+        if (GetHoursUntilDue(dueDate) <= 24) return "badge-due-urgent";
+        if (GetHoursUntilDue(dueDate) <= 72) return "badge-due-soon";
         return "badge-due-normal";
+    }
+
+    private double GetHoursUntilDue(DateTime dueDate)
+    {
+        var localDue = dueDate.ToLocalTime();
+        return (localDue - DateTime.Now).TotalHours;
     }
 
     private string GetDueDateText(DateTime dueDate)
     {
-        var daysUntil = GetDaysUntilDue(dueDate);
+        var hoursUntil = GetHoursUntilDue(dueDate);
 
-        if (daysUntil == 0) return "dnes";
-        if (daysUntil == 1) return "zítra";
-        if (daysUntil > 1) return $"za {daysUntil} dnů";
-        return $"před {Math.Abs(daysUntil)} dny";
+        if (hoursUntil < 0) return "po termínu";
+        if (hoursUntil < 1) return $"za {(int)(hoursUntil * 60)} minut";
+        if (hoursUntil < 24) return $"za {(int)hoursUntil} hodin";
+        if (hoursUntil < 48) return "zítra";
+
+        var days = (int)(hoursUntil / 24);
+        return $"za {days} dnů";
     }
 }
