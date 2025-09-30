@@ -10,9 +10,11 @@
         <NavMenu />
     </div>
     <main>
-        <!-- ✅ TOP BAR s dropdownem -->
-        <div class="top-bar d-flex justify-content-between align-items-center px-4 py-2 border-bottom bg-light">
-            <a href="/" class="text-dark fw-bold fs-5 text-decoration-none">SchoolAssignments</a>
+        <div class="top-bar d-flex justify-content-between align-items-center px-4">
+            <a href="/" class="brand">
+                <i class="fas fa-graduation-cap me-2"></i>
+                SchoolAssignments
+            </a>
 
             <AuthorizeView>
                 <Authorized Context="authContext">
@@ -23,22 +25,32 @@
                         var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                     }
 
-                    <div class="dropdown">
-                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="userDropdown"
-                                data-bs-toggle="dropdown" aria-expanded="false">
-                            <strong>@username</strong> (@role)
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
-                            <li>
-                                <NavLink class="dropdown-item" href=@($"/user-detail/{userId}")>
-                                    Můj profil
-                                </NavLink>
-                            </li>
-                            <li><hr class="dropdown-divider" /></li>
-                            <li>
-                                <button class="dropdown-item text-danger" @onclick="Logout">Odhlásit</button>
-                            </li>
-                        </ul>
+                    <div class="user-dropdown">
+                        <div class="dropdown">
+                            <button class="btn dropdown-toggle d-flex align-items-center" type="button" id="userDropdown"
+                                    data-bs-toggle="dropdown" aria-expanded="false">
+                                <div class="user-avatar me-2">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                                <div class="text-start">
+                                    <strong>@username</strong>
+                                    <small class="d-block">@role</small>
+                                </div>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                                <li>
+                                    <NavLink class="dropdown-item" href=@($"/user-detail/{userId}")>
+                                        <i class="fas fa-user me-2"></i>Můj profil
+                                    </NavLink>
+                                </li>
+                                <li><hr class="dropdown-divider" /></li>
+                                <li>
+                                    <button class="dropdown-item text-danger" @onclick="Logout">
+                                        <i class="fas fa-sign-out-alt me-2"></i>Odhlásit
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
                     </div>
                 </Authorized>
 
@@ -48,7 +60,6 @@
             </AuthorizeView>
         </div>
 
-        <!-- OBSAH STRÁNKY -->
         <article class="content px-4">
             @Body
         </article>

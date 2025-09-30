@@ -7,6 +7,9 @@
         public string Text { get; set; } = string.Empty;
         public QuestionType Type { get; set; }
 
+        public string? CorrectAnswerText { get; set; }
+        public int Points { get; set; } = 1;
+
         public Activity Activity { get; set; } = null!;
         public ICollection<AnswerOption> Options { get; set; } = new List<AnswerOption>();
     }

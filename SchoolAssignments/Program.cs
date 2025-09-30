@@ -21,11 +21,25 @@ builder.Services.AddScoped<ISubmissionService, SubmissionService>();
 builder.Services.AddAuthorizationCore();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IActivityService, ActivityService>();
+builder.Services.AddScoped<ISubjectService, SubjectService>();
+
 builder.Services.AddScoped<CustomAuthenticationStateProvider>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<AuthenticationStateProvider>(provider =>
     provider.GetRequiredService<CustomAuthenticationStateProvider>());
 builder.Services.AddScoped<ProtectedSessionStorage>();
+builder.Services.AddServerSideBlazor()
+    .AddCircuitOptions(options => { options.DetailedErrors = true; });
+builder.Services.AddHttpClient<IJudge0Service, Judge0Service>();
+builder.Services.AddScoped<IClassService, ClassService>();
+builder.Services.AddHttpClient<IJudge0Service, Judge0Service>((sp, client) =>
+{
+    var config = sp.GetRequiredService<IConfiguration>().GetSection("Judge0");
+    client.BaseAddress = new Uri(config["BaseUrl"]!);
+    client.DefaultRequestHeaders.Add("X-RapidAPI-Key", config["ApiKey"]);
+    client.DefaultRequestHeaders.Add("X-RapidAPI-Host", config["ApiHost"]);
+});
+
 
 
 

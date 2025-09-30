@@ -1,35 +1,90 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">SchoolAssignments</a>
-        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
-            <span class="navbar-toggler-icon"></span>
-        </button>
+﻿@using System.Security.Claims
+@inject NavigationManager Navigation
+
+<div class="nav-menu">
+    <div class="text-center p-3 mb-2">
+        <i class="fas fa-graduation-cap fa-2x"></i>
+        <span class="ms-2 fw-bold">Menu</span>
+    </div>
+
+    <div class="nav-item">
+        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+            <i class="fas fa-home"></i>
+            <span>Home</span>
+        </NavLink>
+    </div>
+
+    <!-- Student -->
+    <AuthorizeView Roles="Student">
+        <Authorized>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="student-activities">
+                    <i class="fas fa-tasks"></i>
+                    <span>Moje úkoly</span>
+                </NavLink>
+            </div>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="my-grades">
+                    <i class="fas fa-star"></i>
+                    <span>Moje známky</span>
+                </NavLink>
+            </div>
+        </Authorized>
+    </AuthorizeView>
+
+    <!-- Teacher -->
+    <AuthorizeView Roles="Teacher">
+        <Authorized>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="teacher-activities">
+                    <i class="fas fa-book"></i>
+                    <span>Správa aktivit</span>
+                </NavLink>
+            </div>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="teacher-classes">
+                    <i class="fas fa-users"></i>
+                    <span>Přehled tříd</span>
+                </NavLink>
+            </div>
+        </Authorized>
+    </AuthorizeView>
+
+    <!-- Admin -->
+    <AuthorizeView Roles="Admin">
+        <Authorized>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="admin-dashboard">
+                    <i class="fas fa-cog"></i>
+                    <span>Administrace</span>
+                </NavLink>
+            </div>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="admin/users">
+                    <i class="fas fa-user-cog"></i>
+                    <span>Uživatelé</span>
+                </NavLink>
+            </div>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="admin/classes">
+                    <i class="fas fa-chalkboard"></i>
+                    <span>Třídy</span>
+                </NavLink>
+            </div>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="admin/subjects">
+                    <i class="fas fa-book-open"></i>
+                    <span>Předměty</span>
+                </NavLink>
+            </div>
+        </Authorized>
+    </AuthorizeView>
+
+    <!-- Společné položky -->
+    <div class="nav-item">
+        <NavLink class="nav-link" href="about">
+            <i class="fas fa-info-circle"></i>
+            <span>O aplikaci</span>
+        </NavLink>
     </div>
 </div>
-<div class="@NavMenuCssClass" @onclick="ToggleNavMenu">
-    <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="oi oi-home" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="login">
-                <span class="oi oi-plus" aria-hidden="true"></span> Login
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="register">
-                <span class="oi oi-list-rich" aria-hidden="true"></span> register
-            </NavLink>
-        </div>
-    </nav>
-</div>
-@code {
-    private bool collapseNavMenu = true;
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
-    private void ToggleNavMenu()
-    {
-        collapseNavMenu = !collapseNavMenu;
-    }
-}
