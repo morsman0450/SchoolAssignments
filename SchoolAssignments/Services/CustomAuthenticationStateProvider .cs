@@ -7,12 +7,17 @@ using System.Security.Claims;
 public class CustomAuthenticationStateProvider : AuthenticationStateProvider
 {
     private readonly ProtectedSessionStorage _sessionStorage;
+    private readonly ProtectedLocalStorage _localStorage;
     private readonly IAuthService _authService;
     private ClaimsPrincipal _anonymous = new(new ClaimsIdentity());
 
-    public CustomAuthenticationStateProvider(ProtectedSessionStorage sessionStorage, IAuthService authService)
+    public CustomAuthenticationStateProvider(
+        ProtectedSessionStorage sessionStorage,
+        ProtectedLocalStorage localStorage,
+        IAuthService authService)
     {
         _sessionStorage = sessionStorage;
+        _localStorage = localStorage;
         _authService = authService;
     }
 
@@ -20,47 +25,36 @@ public class CustomAuthenticationStateProvider : AuthenticationStateProvider
     {
         try
         {
-            var userSessionStorageResult = await _sessionStorage.GetAsync<UserSession>("UserSession");
-
-            if (userSessionStorageResult.Success && userSessionStorageResult.Value != null)
+            // Nejprve zkusíme session storage (aktivní přihlášení)
+            var sessionResult = await _sessionStorage.GetAsync<UserSession>("UserSession");
+            if (sessionResult.Success && sessionResult.Value != null)
             {
-                var userSession = userSessionStorageResult.Value;
-                var user = await _authService.GetUserByIdAsync(userSession.Id);
-                if (user != null)
-                {
-                    var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
-                        {
-                            new(ClaimTypes.Name, user.Username),
-                            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                            new(ClaimTypes.Email, user.Email),
-                            new(ClaimTypes.GivenName, user.FirstName),
-                            new(ClaimTypes.Surname, user.LastName),
-                            new(ClaimTypes.Role, user.Role.ToString())
-                        }, "CustomAuth"));
+                return await CreateAuthenticationState(sessionResult.Value);
+            }
 
-                    return new AuthenticationState(claimsPrincipal);
-                }
+            // Pokud není v session, zkusíme local storage (remember me)
+            var localResult = await _localStorage.GetAsync<UserSession>("UserSession");
+            if (localResult.Success && localResult.Value != null)
+            {
+                // Obnovíme i session storage pro rychlejší přístup
+                await _sessionStorage.SetAsync("UserSession", localResult.Value);
+                return await CreateAuthenticationState(localResult.Value);
             }
         }
         catch
         {
+            // Pokud nastane chyba, vrátíme anonymního uživatele
         }
 
         return new AuthenticationState(_anonymous);
     }
 
-    public async Task LoginAsync(User user)
+    private async Task<AuthenticationState> CreateAuthenticationState(UserSession userSession)
     {
-        var userSession = new UserSession
+        var user = await _authService.GetUserByIdAsync(userSession.Id);
+        if (user != null)
         {
-            Id = user.Id,
-            Username = user.Username,
-            Role = user.Role.ToString()
-        };
-
-        await _sessionStorage.SetAsync("UserSession", userSession);
-
-        var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
+            var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
             {
                 new(ClaimTypes.Name, user.Username),
                 new(ClaimTypes.NameIdentifier, user.Id.ToString()),
@@ -70,12 +64,47 @@ public class CustomAuthenticationStateProvider : AuthenticationStateProvider
                 new(ClaimTypes.Role, user.Role.ToString())
             }, "CustomAuth"));
 
+            return new AuthenticationState(claimsPrincipal);
+        }
+
+        return new AuthenticationState(_anonymous);
+    }
+
+    public async Task LoginAsync(User user, bool rememberMe = false)
+    {
+        var userSession = new UserSession
+        {
+            Id = user.Id,
+            Username = user.Username,
+            Role = user.Role.ToString()
+        };
+
+        // Vždy uložit do session storage
+        await _sessionStorage.SetAsync("UserSession", userSession);
+
+        // Pokud je remember me, uložit i do local storage
+        if (rememberMe)
+        {
+            await _localStorage.SetAsync("UserSession", userSession);
+        }
+
+        var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
+        {
+            new(ClaimTypes.Name, user.Username),
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ClaimTypes.Email, user.Email),
+            new(ClaimTypes.GivenName, user.FirstName),
+            new(ClaimTypes.Surname, user.LastName),
+            new(ClaimTypes.Role, user.Role.ToString())
+        }, "CustomAuth"));
+
         NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(claimsPrincipal)));
     }
 
     public async Task LogoutAsync()
     {
         await _sessionStorage.DeleteAsync("UserSession");
+        await _localStorage.DeleteAsync("UserSession");
         NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(_anonymous)));
     }
 }
