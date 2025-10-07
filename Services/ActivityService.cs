@@ -27,10 +27,7 @@ namespace SchoolAssignments.Services
         // Vytvoření aktivity s otázkami
         public async Task<int> CreateActivityWithQuestionsAsync(Activity activity, List<Question> questions, int teacherId, int classTeacherSubjectId)
         {
-            if (activity.DueDate.HasValue && activity.DueDate.Value.Kind == DateTimeKind.Unspecified)
-            {
-                activity.DueDate = DateTime.SpecifyKind(activity.DueDate.Value, DateTimeKind.Utc);
-            }
+           
 
             activity.CreatedByUserId = teacherId;
             activity.ClassTeacherSubjectId = classTeacherSubjectId;
@@ -49,6 +46,7 @@ namespace SchoolAssignments.Services
                     _context.AnswerOptions.Add(option);
                 }
             }
+            DateTime now = activity.CreatedAt;
 
             await _context.SaveChangesAsync();
             return activity.Id;
