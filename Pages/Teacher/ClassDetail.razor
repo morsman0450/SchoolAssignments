@@ -1,0 +1,313 @@
+﻿@page "/class-detail/{ClassId:int}"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@inject IClassService ClassService
+@inject IActivityService ActivityService
+@inject NavigationManager Navigation
+
+<div class="container mt-4 pb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="/teacher-classes" class="text-decoration-none">Moje třídy</a></li>
+                    <li class="breadcrumb-item active">Detail</li>
+                </ol>
+            </nav>
+            <h2 class="fw-bold text-dark mb-0">
+                <i class="bi bi-mortarboard-fill text-primary me-2"></i>
+                @(classModel != null ? classModel.Name : "Načítám…")
+            </h2>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+            <p class="text-muted mt-3">Načítám data třídy...</p>
+        </div>
+    }
+    else if (classModel == null)
+    {
+        <div class="alert alert-danger d-flex align-items-center shadow-sm" role="alert">
+            <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+            <div>
+                <h5 class="alert-heading mb-1 fw-bold">Chyba!</h5>
+                Třída nebyla nalezena nebo k ní nemáte přístup.
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4 mb-5">
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body p-4">
+                        <h6 class="text-muted text-uppercase fw-bold small mb-3">Informace o třídě</h6>
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="stats-icon bg-primary-soft text-primary rounded-circle me-3">
+                                <i class="bi bi-info-circle"></i>
+                            </div>
+                            <div>
+                                <div class="text-muted small">Název</div>
+                                <div class="fw-bold">@classModel.Name</div>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="stats-icon bg-info-soft text-info rounded-circle me-3">
+                                <i class="bi bi-people"></i>
+                            </div>
+                            <div>
+                                <div class="text-muted small">Počet studentů</div>
+                                <div class="fw-bold">@(classModel.Students?.Count ?? 0)</div>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="stats-icon bg-warning-soft text-warning rounded-circle me-3">
+                                <i class="bi bi-journal-text"></i>
+                            </div>
+                            <div>
+                                <div class="text-muted small">Počet aktivit</div>
+                                <div class="fw-bold">@(classModel.ClassTeacherSubjects?.Sum(cts => cts.Activities?.Count ?? 0))</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body p-4 text-center d-flex flex-column">
+                        <h6 class="text-muted text-uppercase fw-bold small mb-3 text-start">Učitelé a předměty</h6>
+                        @if (classModel.ClassTeacherSubjects != null && classModel.ClassTeacherSubjects.Any())
+                        {
+                            <div class="list-group list-group-flush text-start">
+                                @foreach (var cts in classModel.ClassTeacherSubjects)
+                                {
+                                    <div class="list-group-item px-0 border-0 d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <div class="fw-bold">@cts.Teacher.FirstName @cts.Teacher.LastName</div>
+                                            <div class="text-muted small">@cts.Subject.Name</div>
+                                        </div>
+                                        <i class="bi bi-chevron-right text-light"></i>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="my-auto text-muted small">Žádní učitelé přiřazeni.</div>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-4">
+                <div class="card border-0 shadow-sm overflow-hidden">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="fw-bold mb-0"><i class="bi bi-people text-primary me-2"></i>Studenti</h5>
+                    </div>
+                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                        <table class="table table-hover align-middle mb-0">
+                            <tbody>
+                                @foreach (var cs in classModel.Students)
+                                {
+                                    <tr>
+                                        <td class="ps-4 py-3">
+                                            <div class="fw-bold text-dark">@cs.Student.FirstName @cs.Student.LastName</div>
+                                            <div class="extra-small text-muted text-truncate" style="max-width: 150px;">@cs.Student.Email</div>
+                                        </td>
+                                        <td class="text-end pe-4">
+                                            <button class="btn btn-sm btn-light border text-primary rounded-pill px-3"
+                                                    @onclick="() => NavigateToStudentResults(cs.Student.Id)">
+                                                Výsledky
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    @if (classModel.Students == null || !classModel.Students.Any())
+                    {
+                        <div class="card-body text-center text-muted small py-4">Třída nemá žádné studenty.</div>
+                    }
+                </div>
+            </div>
+
+        </div>
+
+        <div class="row g-4">
+            <div class="col-xl-8">
+                <div class="card border-0 shadow-sm overflow-hidden">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="fw-bold mb-0"><i class="bi bi-list-task text-primary me-2"></i>Seznam aktivit</h5>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr class="text-muted small text-uppercase">
+                                    <th class="ps-4">Název</th>
+                                    <th>Typ</th>
+                                    <th class="text-center">Max. b.</th>
+                                    <th>Termín</th>
+                                    <th class="text-end pe-4">Akce</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var cts in classModel.ClassTeacherSubjects)
+                                {
+                                    @foreach (var activity in cts.Activities.OrderByDescending(a => a.CreatedAt))
+                                    {
+                                        <tr class="@(!activity.IsActive ? "opacity-50 grayscale" : "")">
+                                            <td class="ps-4">
+                                                <div class="fw-bold">@activity.Title</div>
+                                                <small class="text-muted extra-small">@cts.Subject.Name</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-light text-dark border fw-medium">
+                                                    <i class="bi bi-tag me-1 text-primary"></i> @activity.Type
+                                                </span>
+                                            </td>
+                                            <td class="text-center fw-bold text-primary">@activity.MaxPoints</td>
+                                            <td class="small">
+                                                @if (activity.DueDate.HasValue)
+                                                {
+                                                    <div class="d-flex align-items-center">
+                                                        <i class="bi bi-calendar-event me-2 text-muted"></i>
+                                                        @activity.DueDate.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted opacity-50">Bez termínu</span>
+                                                }
+                                            </td>
+                                            <td class="text-end pe-4">
+                                                <div class="btn-group btn-group-sm shadow-sm">
+                                                    <button class="btn btn-white border-light text-primary" @onclick="() => NavigateToActivity(activity.Id)" title="Detail">
+                                                        <i class="bi bi-eye"></i>
+                                                    </button>
+                                                    <button class="btn btn-white border-light text-warning" @onclick="() => EditActivity(activity.Id)" title="Upravit">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </button>
+                                                    <button class="btn btn-white border-light text-danger" @onclick="() => DeleteActivity(activity.Id)" title="Smazat">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+         
+        </div>
+    }
+</div>
+
+<style>
+    .bg-primary-soft {
+        background-color: rgba(13, 110, 253, 0.1);
+    }
+
+    .bg-info-soft {
+        background-color: rgba(13, 202, 240, 0.1);
+    }
+
+    .bg-warning-soft {
+        background-color: rgba(255, 193, 7, 0.1);
+    }
+
+    .stats-icon {
+        width: 42px;
+        height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+
+    .extra-small {
+        font-size: 0.75rem;
+    }
+
+    .btn-white {
+        background: #fff;
+    }
+
+        .btn-white:hover {
+            background: #f8f9fa;
+        }
+
+    .grayscale {
+        filter: grayscale(1);
+    }
+
+    /* Scrollbar pro studenty */
+    ::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #dee2e6;
+        border-radius: 10px;
+    }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #ced4da;
+        }
+</style>
+
+@code {
+    [Parameter]
+    public int ClassId { get; set; }
+
+    private Class? classModel;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            classModel = await ClassService.GetClassByIdAsync(ClassId);
+        }
+        catch
+        {
+            classModel = null;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    private void NavigateToStudentResults(int studentId)
+    {
+        Navigation.NavigateTo($"/student-results/{ClassId}/{studentId}");
+    }
+
+    private void NavigateToActivity(int activityId)
+    {
+        Navigation.NavigateTo($"/activity-detail/{activityId}");
+    }
+
+    private void EditActivity(int activityId)
+    {
+        Navigation.NavigateTo($"/edit-activity/{activityId}");
+    }
+
+    private async Task DeleteActivity(int activityId)
+    {
+        var activity = await ActivityService.GetActivityWithDetailsAsync(activityId);
+        if (activity != null)
+        {
+            activity.IsActive = false;
+            await ActivityService.UpdateActivityAsync(activity);
+            classModel = await ClassService.GetClassByIdAsync(ClassId); // refresh
+        }
+    }
+}

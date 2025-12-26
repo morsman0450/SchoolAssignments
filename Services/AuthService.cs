@@ -54,6 +54,26 @@ namespace SchoolAssignments.Services
 
             return true;
         }
+        public async Task<bool> CreateUserAsync(RegisterModel model)
+        {
+            // ✅ podobné jako RegisterAsync, ale bez přihlašování
+            if (await _context.Users.AnyAsync(u => u.Email == model.Email || u.Username == model.Username))
+                return false;
+
+            var user = new User
+            {
+                FirstName = model.FirstName,
+                LastName = model.LastName,
+                Username = model.Username,
+                Email = model.Email,
+                Role = model.Role,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(model.Password)
+            };
+
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+            return true;
+        }
 
         public async Task<User?> GetUserByIdAsync(int userId)
         {

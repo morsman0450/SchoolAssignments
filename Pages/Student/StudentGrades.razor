@@ -1,0 +1,367 @@
+﻿@page "/my-grades"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@inject ISubmissionService SubmissionService
+@inject AuthenticationStateProvider AuthProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Moje hodnocení</PageTitle>
+
+<div class="container mt-4 pb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-dark mb-1">
+                <i class="bi bi-bar-chart-line text-primary me-2"></i>Moje hodnocení
+            </h2>
+            <p class="text-muted mb-0">Přehled tvých výsledků a získaných bodů ze všech aktivit.</p>
+        </div>
+    </div>
+
+    @if (summaries == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">Načítám výsledky...</p>
+        </div>
+    }
+    else if (!summaries.Any())
+    {
+        <div class="card border-0 shadow-sm text-center py-5">
+            <div class="card-body">
+                <i class="bi bi-journal-x text-muted display-1 opacity-25"></i>
+                <h4 class="fw-bold mt-3">Zatím žádné hodnocení</h4>
+                <p class="text-muted">Jakmile odevzdáš první úkol a učitel ho opraví, uvidíš výsledek zde.</p>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4 mb-5">
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm h-100 bg-white">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="stats-icon bg-primary-soft text-primary rounded-circle me-3">
+                            <i class="bi bi-list-task"></i>
+                        </div>
+                        <div>
+                            <h6 class="text-muted small text-uppercase fw-bold mb-1">Celkem</h6>
+                            <h3 class="fw-bold mb-0">@summaries.Count</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm h-100 bg-white">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="stats-icon bg-success-soft text-success rounded-circle me-3">
+                            <i class="bi bi-check-circle"></i>
+                        </div>
+                        <div>
+                            <h6 class="text-muted small text-uppercase fw-bold mb-1">Splněné</h6>
+                            <h3 class="fw-bold mb-0">@summaries.Count(s => s.LatestPoints != null && s.LatestPoints >= s.MaxPoints)</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm h-100 bg-white border-start border-warning border-4">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="stats-icon bg-warning-soft text-warning rounded-circle me-3">
+                            <i class="bi bi-hourglass-split"></i>
+                        </div>
+                        <div>
+                            <h6 class="text-muted small text-uppercase fw-bold mb-1">K opravě</h6>
+                            <h3 class="fw-bold mb-0 text-warning">@summaries.Count(s => s.LatestPoints == null)</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm h-100 bg-white">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="stats-icon bg-info-soft text-info rounded-circle me-3">
+                            <i class="bi bi-percent"></i>
+                        </div>
+                        <div>
+                            <h6 class="text-muted small text-uppercase fw-bold mb-1">Průměr</h6>
+                            <h3 class="fw-bold mb-0">@GetAverageScore()%</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body p-3">
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-6">
+                        <div class="input-group input-group-flat border rounded-3">
+                            <span class="input-group-text bg-white border-0"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" class="form-control border-0 shadow-none ps-0" placeholder="Hledat aktivitu..."
+                                   @bind="searchQuery" @bind:event="oninput" />
+                        </div>
+                    </div>
+                    <div class="col-md-6 d-flex justify-content-md-end gap-2">
+                        <button class="btn btn-sm @(filterStatus == "all" ? "btn-primary shadow-sm" : "btn-light border") px-3 rounded-pill fw-bold"
+                                @onclick='() => filterStatus = "all"'>
+                            Vše
+                        </button>
+                        <button class="btn btn-sm @(filterStatus == "excellent" ? "btn-primary shadow-sm" : "btn-light border") px-3 rounded-pill fw-bold"
+                                @onclick='() => filterStatus = "excellent"'>
+                            Výborné
+                        </button>
+                        <button class="btn btn-sm @(filterStatus == "pending" ? "btn-primary shadow-sm" : "btn-light border") px-3 rounded-pill fw-bold"
+                                @onclick='() => filterStatus = "pending"'>
+                            Neopravené
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            @foreach (var s in GetFilteredSummaries())
+            {
+                var percentage = GetPercentage(s);
+                var statusClass = GetBootstrapStatusClass(s);
+
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm hover-card transition-all">
+                        <div class="card-body p-4">
+                            <div class="row align-items-center">
+                                <div class="col-md-4 mb-3 mb-md-0">
+                                    <div class="d-flex align-items-center">
+                                        <div class="status-indicator bg-@statusClass me-3 shadow-sm"></div>
+                                        <div>
+                                            <h5 class="fw-bold text-dark mb-1">@s.Title</h5>
+                                            <span class="badge bg-@statusClass-soft text-@statusClass border-0 px-3 py-1 rounded-pill small fw-bold">
+                                                @if (s.LatestPoints != null)
+                                                {
+                                                    <span>@s.LatestPoints / @s.MaxPoints bodů</span>
+                                                }
+                                                else
+                                                {
+
+                                                    <span class="text-warning">Čeká na opravu</span>
+                                                }
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-5 mb-3 mb-md-0 px-md-4">
+                                    <div class="d-flex justify-content-between align-items-end mb-2">
+                                        <span class="small text-muted fw-bold text-uppercase ls-1">Úspěšnost</span>
+                                        <span class="small fw-bold text-dark">@percentage %</span>
+                                    </div>
+                                    <div class="progress rounded-pill shadow-inner" style="height: 10px; background-color: #f0f0f0;">
+                                        <div class="progress-bar bg-@statusClass shadow-sm"
+                                             role="progressbar" style="width: @percentage%"></div>
+                                    </div>
+                                    <div class="mt-2 small text-muted">
+                                        <i class="bi bi-clock-history me-1"></i> Odevzdáno: <strong>@s.LatestSubmissionDate.ToLocalTime().ToString("dd.MM.yyyy")</strong>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-3 text-md-end">
+                                    <div class="d-inline-flex flex-column align-items-md-end">
+                                        <span class="badge bg-light text-muted border px-3 py-2 rounded-3 mb-2 small fw-medium">
+                                            <i class="bi bi-arrow-repeat me-1 text-primary"></i> Pokusy: @s.AttemptsCount
+                                        </span>
+                                        <button class="btn btn-primary shadow-sm rounded-pill px-4 fw-bold py-2"
+                                                @onclick="() => ViewSubmissionDetail(s.ActivityId)">
+                                            Zobrazit detail <i class="bi bi-chevron-right ms-1"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    /* SOFT BARVY PRO IKONY A BADGES */
+    .bg-primary-soft {
+        background-color: rgba(13, 110, 253, 0.1);
+    }
+
+    .bg-success-soft {
+        background-color: rgba(25, 135, 84, 0.1);
+    }
+
+    .bg-warning-soft {
+        background-color: rgba(255, 193, 7, 0.15);
+    }
+
+    .bg-info-soft {
+        background-color: rgba(13, 202, 240, 0.15);
+    }
+
+    .bg-danger-soft {
+        background-color: rgba(220, 53, 69, 0.1);
+    }
+
+    .text-success {
+        color: #198754 !important;
+    }
+
+    .text-warning {
+        color: #f59e0b !important;
+    }
+
+    .stats-icon {
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+    }
+
+    .ls-1 {
+        letter-spacing: 0.5px;
+    }
+
+    .input-group-flat {
+        background: #fff;
+        transition: box-shadow 0.2s;
+    }
+
+        .input-group-flat:focus-within {
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.1);
+        }
+
+    .hover-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        border: 1px solid #f0f0f0 !important;
+    }
+
+        .hover-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 1rem 3rem rgba(0,0,0,0.08) !important;
+            border-color: #e0e0e0 !important;
+        }
+
+    .status-indicator {
+        width: 6px;
+        height: 40px;
+        border-radius: 10px;
+    }
+
+    .shadow-inner {
+        box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .transition-all {
+        transition: all 0.3s ease;
+    }
+</style>
+
+@code {
+    private string GetBootstrapStatusClass(dynamic s)
+    {
+        // dynamic nemá .HasValue, používáme == null
+        if (s.LatestPoints == null) return "warning";
+
+        var p = GetPercentage(s);
+        if (p >= 90) return "success";
+        if (p >= 50) return "primary";
+        return "danger";
+    }
+}
+
+@code {
+    private List<StudentActivitySummary>? summaries;
+    private string searchQuery = "";
+    private string filterStatus = "all";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (int.TryParse(userId, out var studentId))
+        {
+            summaries = await SubmissionService.GetStudentActivitySummariesAsync(studentId);
+        }
+        else
+        {
+            summaries = new List<StudentActivitySummary>();
+        }
+    }
+
+    private void ViewSubmissionDetail(int activityId)
+    {
+        Navigation.NavigateTo($"/activity-submissions/{activityId}");
+    }
+    // private string GetBootstrapStatusClass(dynamic s)
+    // {
+    //     // Místo .HasValue použij u dynamic prostou kontrolu na null
+    //     if (s.LatestPoints == null)
+    //     {
+    //         return "warning text-dark";
+    //     }
+
+    //     var p = GetPercentage(s);
+    //     if (p >= 90) return "success";
+    //     if (p >= 50) return "primary";
+    //     return "danger";
+    // }
+    private string GetCardClass(StudentActivitySummary s)
+    {
+        if (!s.LatestPoints.HasValue) return "pending";
+        return s.LatestPoints >= s.MaxPoints ? "excellent" : "good";
+    }
+
+    private string GetScoreClass(StudentActivitySummary s)
+    {
+        if (!s.LatestPoints.HasValue) return "pending";
+        return s.LatestPoints >= s.MaxPoints ? "excellent" : "good";
+    }
+
+    private int GetPercentage(StudentActivitySummary s)
+    {
+        if (!s.LatestPoints.HasValue || s.MaxPoints == 0) return 0;
+        return (int)((s.LatestPoints.Value / (double)s.MaxPoints) * 100);
+    }
+
+    private string GetAverageScore()
+    {
+        var graded = summaries?.Where(s => s.LatestPoints.HasValue).ToList();
+        if (graded == null || !graded.Any()) return "0";
+
+        var avg = graded.Average(s => (s.LatestPoints!.Value / (double)s.MaxPoints) * 100);
+        return avg.ToString("F0");
+    }
+
+    private List<StudentActivitySummary> GetFilteredSummaries()
+    {
+        if (summaries == null) return new List<StudentActivitySummary>();
+
+        var filtered = summaries.AsEnumerable();
+
+        // Filtrovat podle vyhledávání
+        if (!string.IsNullOrWhiteSpace(searchQuery))
+        {
+            filtered = filtered.Where(s => s.Title.Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // Filtrovat podle statusu
+        filtered = filterStatus switch
+        {
+            "excellent" => filtered.Where(s => s.LatestPoints.HasValue && s.LatestPoints >= s.MaxPoints),
+            "pending" => filtered.Where(s => !s.LatestPoints.HasValue),
+            _ => filtered
+        };
+
+        return filtered.OrderByDescending(s => s.LatestSubmissionDate).ToList();
+    }
+}

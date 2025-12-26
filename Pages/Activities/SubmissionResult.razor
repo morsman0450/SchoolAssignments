@@ -1,0 +1,203 @@
+﻿@page "/submission-result/{SubmissionId:int}"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@inject ISubmissionService SubmissionService
+
+<div class="container py-4">
+    <div class="mb-3">
+        <button class="btn btn-sm btn-outline-secondary" onclick="history.back()">
+            <i class="bi bi-arrow-left"></i> Zpět na aktivity
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">Načítám výsledky...</p>
+        </div>
+    }
+    else if (loadError)
+    {
+        <div class="alert alert-danger shadow-sm">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i> Nepodařilo se načíst výsledek odevzdání.
+        </div>
+    }
+    else if (submission != null)
+    {
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h2 class="fw-bold text-dark mb-1">@submission.Activity.Title</h2>
+                        <span class="text-muted small">
+                            <i class="bi bi-calendar-check me-1"></i> Odevzdáno: @submission.SubmittedAt.ToString("dd.MM.yyyy HH:mm")
+                        </span>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge @(submission.Status == SubmissionStatus.Graded ? "bg-success" : "bg-warning text-dark") fs-6 shadow-sm">
+                            @(submission.Status == SubmissionStatus.Graded ? "Ohodnoceno" : "Čeká na hodnocení")
+                        </span>
+                    </div>
+                </div>
+
+                @if (submission.Points.HasValue)
+                {
+                    <div class="row align-items-center mt-4">
+                        <div class="col-md-3">
+                            <div class="text-muted small text-uppercase fw-bold">Získané body</div>
+                            <div class="h3 fw-bold mb-0">@submission.Points / @submission.Activity.MaxPoints</div>
+                        </div>
+                        <div class="col-md-9">
+                            @{
+                                var percentage = (double)submission.Points / submission.Activity.MaxPoints * 100;
+                            }
+                            <div class="progress rounded-pill" style="height: 12px;">
+                                <div class="progress-bar @(percentage >= 50 ? "bg-success" : "bg-danger")"
+                                     role="progressbar" style="width: @percentage%"></div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(submission.Feedback))
+        {
+            <div class="card border-primary bg-primary-subtle shadow-sm mb-4">
+                <div class="card-body">
+                    <h6 class="fw-bold text-primary mb-2"><i class="bi bi-chat-left-text-fill me-2"></i>Komentář učitele</h6>
+                    <p class="mb-0 text-dark">@submission.Feedback</p>
+                </div>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(submission.CompileOutput) || !string.IsNullOrEmpty(submission.StdOutput) || !string.IsNullOrEmpty(submission.Stderr))
+        {
+            <div class="card border-0 shadow-sm mb-4 bg-dark text-light overflow-hidden">
+                <div class="card-header bg-secondary bg-opacity-25 border-bottom border-secondary text-white-50 small fw-bold">
+                    <i class="bi bi-terminal me-2"></i>VÝSTUP KONZOLE
+                </div>
+                <div class="card-body p-0">
+                    @if (!string.IsNullOrEmpty(submission.CompileOutput))
+                    {
+                        <div class="p-3 border-bottom border-secondary">
+                            <small class="text-warning d-block mb-1">Kompilace:</small>
+                            <pre class="mb-0 small text-light-emphasis">@submission.CompileOutput</pre>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(submission.StdOutput))
+                    {
+                        <div class="p-3 border-bottom border-secondary">
+                            <small class="text-success d-block mb-1">Standardní výstup:</small>
+                            <pre class="mb-0 small text-white">@submission.StdOutput</pre>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(submission.Stderr))
+                    {
+                        <div class="p-3">
+                            <small class="text-danger d-block mb-1">Chyba (Runtime):</small>
+                            <pre class="mb-0 small text-danger-subtle">@submission.Stderr</pre>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <h5 class="fw-bold mb-3"><i class="bi bi-list-check me-2 text-primary"></i>Podrobný přehled odpovědí</h5>
+
+        @foreach (var (question, index) in submission.Activity.Questions.Select((q, i) => (q, i)))
+        {
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body">
+                    <h6 class="fw-bold mb-3 text-dark">
+                        <span class="text-muted">@(index + 1).</span> @question.Text
+                    </h6>
+
+                    @if (question.Type == QuestionType.OpenText)
+                    {
+                        var openAnswer = submission.StudentAnswers.FirstOrDefault(sa => sa.QuestionId == question.Id)?.OpenTextAnswer;
+                        <div class="p-3 bg-light rounded border border-light-subtle">
+                            <small class="text-muted d-block mb-1">Tvoje odpověď:</small>
+                            <div class="fw-medium">@(string.IsNullOrWhiteSpace(openAnswer) ? "Neodevzdáno" : openAnswer)</div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="list-group list-group-flush border rounded overflow-hidden">
+                            @foreach (var option in question.Options)
+                            {
+                                var isSelected = submission.StudentAnswers.Any(sa => sa.AnswerOptionId == option.Id);
+                                var isCorrect = option.IsCorrect;
+
+                                // Logika barvení řádku
+                                string rowClass = "";
+                                if (isSelected && isCorrect) rowClass = "list-group-item-success";
+                                else if (isSelected && !isCorrect) rowClass = "list-group-item-danger";
+                                else if (!isSelected && isCorrect) rowClass = "list-group-item-light opacity-75";
+
+                                <div class="list-group-item d-flex justify-content-between align-items-center @rowClass py-3">
+                                    <div>
+                                        <i class="bi @(isSelected ? "bi-check-square-fill" : "bi-square") me-2"></i>
+                                        @option.Text
+                                    </div>
+
+                                    @if (isCorrect)
+                                    {
+                                        <span class="badge bg-success shadow-sm">Správná odpověď</span>
+                                    }
+                                    else if (isSelected && !isCorrect)
+                                    {
+                                        <span class="badge bg-danger shadow-sm">Tvoje chybná volba</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<style>
+    pre {
+        white-space: pre-wrap;
+        word-break: break-all;
+        font-family: 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+    }
+
+    .list-group-item-success {
+        background-color: #d1e7dd !important;
+        border-color: #badbcc !important;
+    }
+
+    .list-group-item-danger {
+        background-color: #f8d7da !important;
+        border-color: #f5c2c7 !important;
+    }
+</style>
+
+@code {
+    [Parameter] public int SubmissionId { get; set; }
+
+    private Submission? submission;
+    private bool isLoading = true;
+    private bool loadError = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            submission = await SubmissionService.GetSubmissionWithDetailsAsync(SubmissionId);
+        }
+        catch
+        {
+            loadError = true;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

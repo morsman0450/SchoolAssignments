@@ -1,0 +1,219 @@
+﻿@page "/create-user"
+@using SchoolAssignments.ViewModels
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<AuthorizeView Roles="Admin">
+    <Authorized Context="auth">
+        <PageTitle>Přidat uživatele | Administrace</PageTitle>
+
+        <div class="container mt-4 pb-5">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-2">
+                    <li class="breadcrumb-item"><a href="/admin/users" class="text-decoration-none">Správa uživatelů</a></li>
+                    <li class="breadcrumb-item active">Nový uživatel</li>
+                </ol>
+            </nav>
+
+            <div class="row justify-content-center">
+                <div class="col-lg-8 col-xl-7">
+                    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+                        <div class="bg-primary shadow-sm" style="height: 6px;"></div>
+
+                        <div class="card-body p-4 p-md-5">
+                            <div class="text-center mb-4">
+                                <div class="bg-primary-soft text-primary d-inline-flex align-items-center justify-content-center rounded-circle mb-3" style="width: 60px; height: 60px;">
+                                    <i class="bi bi-person-plus-fill fs-2"></i>
+                                </div>
+                                <h3 class="fw-bold text-dark">Přidat nového uživatele</h3>
+                                <p class="text-muted small">Vyplňte údaje pro vytvoření nového přístupu do systému.</p>
+                            </div>
+
+                            <EditForm Model="registerModel" OnValidSubmit="HandleCreateUser">
+                                <DataAnnotationsValidator />
+
+                                @if (!string.IsNullOrEmpty(errorMessage))
+                                {
+                                    <div class="alert alert-danger border-0 shadow-sm d-flex align-items-center animate-fade-in" role="alert">
+                                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                        <div>@errorMessage</div>
+                                    </div>
+                                }
+
+                                @if (!string.IsNullOrEmpty(successMessage))
+                                {
+                                    <div class="alert alert-success border-0 shadow-sm d-flex align-items-center animate-fade-in" role="alert">
+                                        <i class="bi bi-check-circle-fill me-2"></i>
+                                        <div>@successMessage</div>
+                                    </div>
+                                }
+
+                                <h6 class="text-primary fw-bold text-uppercase small mb-3 ls-1">Osobní údaje</h6>
+                                <div class="row g-3 mb-4">
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-bold text-muted">Jméno</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-person"></i></span>
+                                            <InputText @bind-Value="registerModel.FirstName" class="form-control bg-light border-start-0 shadow-none" placeholder="Jan" />
+                                        </div>
+                                        <ValidationMessage For="@(() => registerModel.FirstName)" class="text-danger extra-small mt-1" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-bold text-muted">Příjmení</label>
+                                        <InputText @bind-Value="registerModel.LastName" class="form-control bg-light shadow-none" placeholder="Novák" />
+                                        <ValidationMessage For="@(() => registerModel.LastName)" class="text-danger extra-small mt-1" />
+                                    </div>
+                                </div>
+
+                                <h6 class="text-primary fw-bold text-uppercase small mb-3 ls-1">Účet a Role</h6>
+                                <div class="row g-3 mb-4">
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-bold text-muted">Uživatelské jméno</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-at"></i></span>
+                                            <InputText @bind-Value="registerModel.Username" class="form-control bg-light border-start-0 shadow-none" placeholder="jnovak" />
+                                        </div>
+                                        <ValidationMessage For="@(() => registerModel.Username)" class="text-danger extra-small mt-1" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-bold text-muted">Role v systému</label>
+                                        <InputSelect @bind-Value="registerModel.Role" class="form-select bg-light shadow-none">
+                                            <option value="@UserRole.Student">Student</option>
+                                            <option value="@UserRole.Teacher">Učitel</option>
+                                            <option value="@UserRole.Admin">Správce (Admin)</option>
+                                        </InputSelect>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label small fw-bold text-muted">Emailová adresa</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-envelope"></i></span>
+                                            <InputText @bind-Value="registerModel.Email" type="email" class="form-control bg-light border-start-0 shadow-none" placeholder="email@skola.cz" />
+                                        </div>
+                                        <ValidationMessage For="@(() => registerModel.Email)" class="text-danger extra-small mt-1" />
+                                    </div>
+                                </div>
+
+                                <h6 class="text-primary fw-bold text-uppercase small mb-3 ls-1">Zabezpečení</h6>
+                                <div class="row g-3 mb-4">
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-bold text-muted">Heslo</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-key"></i></span>
+                                            <InputText @bind-Value="registerModel.Password" type="password" class="form-control bg-light border-start-0 shadow-none" placeholder="••••••••" />
+                                        </div>
+                                        <ValidationMessage For="@(() => registerModel.Password)" class="text-danger extra-small mt-1" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-bold text-muted">Potvrzení hesla</label>
+                                        <InputText @bind-Value="registerModel.ConfirmPassword" type="password" class="form-control bg-light shadow-none" placeholder="••••••••" />
+                                        <ValidationMessage For="@(() => registerModel.ConfirmPassword)" class="text-danger extra-small mt-1" />
+                                    </div>
+                                </div>
+
+                                <div class="mt-5">
+                                    <button type="submit" class="btn btn-primary w-100 py-3 rounded-3 shadow-sm fw-bold d-flex align-items-center justify-content-center" disabled="@isLoading">
+                                        @if (isLoading)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-2"></span>
+                                            <span>Vytvářím účet...</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-check-lg me-2"></i>
+                                            <span>Vytvořit uživatele</span>
+                                        }
+                                    </button>
+                                </div>
+                            </EditForm>
+
+                            <div class="text-center mt-4">
+                                <button class="btn btn-link text-muted text-decoration-none small"
+                                        @onclick='() => Navigation.NavigateTo("/admin/users")'>
+                                    <i class="bi bi-arrow-left me-1"></i> Zpět na seznam uživatelů
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </Authorized>
+</AuthorizeView>
+
+<style>
+    .bg-primary-soft {
+        background-color: rgba(13, 110, 253, 0.1);
+    }
+
+    .ls-1 {
+        letter-spacing: 0.5px;
+    }
+
+    .extra-small {
+        font-size: 0.75rem;
+    }
+
+    .form-control:focus, .form-select:focus {
+        background-color: #fff !important;
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.05) !important;
+    }
+
+    .animate-fade-in {
+        animation: fadeIn 0.3s ease-in;
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+
+@code {
+    private RegisterModel registerModel = new();
+    private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
+    private bool isLoading = false;
+
+    private async Task HandleCreateUser()
+    {
+        isLoading = true;
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+
+        try
+        {
+            // Volání nové metody v AuthService, např. CreateUserAsync místo RegisterAsync
+            var success = await AuthService.CreateUserAsync(registerModel);
+
+            if (success)
+            {
+                successMessage = $"✅ Účet pro {registerModel.FirstName} {registerModel.LastName} byl úspěšně vytvořen.";
+                registerModel = new RegisterModel(); // reset formuláře
+            }
+            else
+            {
+                errorMessage = "Nepodařilo se vytvořit uživatele. Možná už existuje.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Došlo k chybě při vytváření uživatele.";
+            await JSRuntime.InvokeVoidAsync("console.error", ex.Message);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

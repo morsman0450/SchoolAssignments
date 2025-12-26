@@ -1,0 +1,169 @@
+﻿@page "/student-results/{ClassId:int}/{StudentId:int}"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@inject ISubmissionService SubmissionService
+@inject IClassService ClassService
+@inject AuthenticationStateProvider AuthProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Výsledky studenta</PageTitle>
+
+<div class="container mt-4 pb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="/teacher-classes" class="text-decoration-none">Moje třídy</a></li>
+                    <li class="breadcrumb-item active">Výsledky studenta</li>
+                </ol>
+            </nav>
+            <h3 class="fw-bold text-dark mb-0">
+                <i class="bi bi-person-check text-primary me-2"></i>Výsledky studenta
+            </h3>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm" onclick="history.back()">
+            <i class="bi bi-arrow-left"></i> Zpět
+        </button>
+    </div>
+
+    @if (summaries == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2">Načítám výsledky...</p>
+        </div>
+    }
+    else if (!summaries.Any())
+    {
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-folder-x text-muted mb-3" style="font-size: 3rem;"></i>
+                <h5 class="text-secondary">Žádné odevzdané aktivity</h5>
+                <p class="text-muted">Tento student zatím neodevzdal žádnou aktivitu ve vašich předmětech.</p>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var s in summaries)
+            {
+                var percentage = s.MaxPoints > 0 ? (double)(s.LatestPoints ?? 0) / s.MaxPoints * 100 : 0;
+                string progressClass = percentage >= 80 ? "bg-success" : (percentage >= 50 ? "bg-primary" : "bg-warning");
+
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm hover-card transition-all">
+                        <div class="card-body p-4">
+                            <div class="row align-items-center">
+                                <div class="col-md-4 mb-3 mb-md-0">
+                                    <h5 class="fw-bold text-dark mb-1">@s.Title</h5>
+                                    <span class="badge bg-light text-muted border small">ID Aktivity: #@s.ActivityId</span>
+                                </div>
+
+                                <div class="col-md-4 mb-3 mb-md-0 text-center text-md-start">
+                                    <div class="d-flex justify-content-between align-items-end mb-1">
+                                        <span class="small fw-bold text-muted uppercase">Úspěšnost</span>
+                                        <span class="fw-bold @(s.LatestPoints.HasValue ? "text-dark" : "text-muted italic")">
+                                            @(s.LatestPoints.HasValue ? $"{s.LatestPoints} / {s.MaxPoints} b." : $"Nehodnoceno / {s.MaxPoints} b.")
+                                        </span>
+                                    </div>
+                                    <div class="progress rounded-pill" style="height: 10px;">
+                                        <div class="progress-bar @progressClass" role="progressbar"
+                                             style="width: @percentage%" aria-valuenow="@percentage" aria-valuemin="0" aria-valuemax="100"></div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-3 mb-3 mb-md-0 ps-md-4">
+                                    <div class="small text-muted mb-1">
+                                        <i class="bi bi-clock-history me-1"></i> @s.LatestSubmissionDate.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                                    </div>
+                                    <div class="small">
+                                        <span class="text-muted">Pokusy:</span>
+                                        <span class="badge bg-secondary-soft text-secondary rounded-pill fw-bold">@s.AttemptsCount</span>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-1 text-md-end">
+                                    <button class="btn btn-primary rounded-circle shadow-sm p-0 d-flex align-items-center justify-content-center mx-auto mx-md-0"
+                                            style="width: 40px; height: 40px;"
+                                            @onclick="() => ViewSubmissionDetail(s.ActivityId)"
+                                            title="Zobrazit detail">
+                                        <i class="bi bi-chevron-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    /* "Soft" barvy pro badge */
+    .bg-secondary-soft {
+        background-color: rgba(108, 117, 125, 0.1);
+    }
+
+    /* Animace a hover efekt karet */
+    .hover-card {
+        border-left: 4px solid transparent !important;
+    }
+
+        .hover-card:hover {
+            transform: translateX(5px);
+            border-left-color: #0d6efd !important;
+            background-color: #fcfcfc;
+        }
+
+    .transition-all {
+        transition: all 0.2s ease-in-out;
+    }
+
+    .uppercase {
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .italic {
+        font-style: italic;
+    }
+
+    /* Responzivní zarovnání na mobilu */
+    @@media (max-width: 768px) {
+        .card-body {
+            text-align: center;
+        }
+
+        .progress {
+            margin-bottom: 1rem;
+        }
+    }
+</style>
+
+@code {
+    [Parameter] public int ClassId { get; set; }
+    [Parameter] public int StudentId { get; set; }
+
+    private List<StudentActivitySummary>? summaries;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        var teacherIdStr = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(teacherIdStr, out var teacherId))
+        {
+            summaries = new List<StudentActivitySummary>();
+            return;
+        }
+
+        summaries = await SubmissionService.GetStudentActivitySummariesByTeacherAsync(StudentId, teacherId);
+    }
+    private void ViewSubmissionDetail(int activityId)
+    {
+        Navigation.NavigateTo($"/activity-submissions/{activityId}");
+    }
+}

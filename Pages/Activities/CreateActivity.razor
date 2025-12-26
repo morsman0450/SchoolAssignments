@@ -1,0 +1,570 @@
+﻿@page "/create-activity"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IClassService ClassService
+@inject ISubjectService SubjectService
+
+@inject IActivityService ActivityService
+@inject NavigationManager Navigation
+@using BlazorMonaco
+@using BlazorMonaco.Editor
+@using System.Text.RegularExpressions
+@using System.Text.Json
+@inject IJSRuntime JS
+
+<h3>Vytvořit aktivitu</h3>
+
+<EditForm Model="activityModel" OnValidSubmit="HandleValidSubmit" class="container pb-5">
+    <DataAnnotationsValidator />
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white py-3">
+                    <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Základní informace o aktivitě</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Název aktivity</label>
+                        <InputText class="form-control form-control-lg" @bind-Value="activityModel.Title" placeholder="Např. Procvičování cyklů v Pythonu" />
+                        <ValidationMessage For="@(() => activityModel.Title)" class="text-danger small" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Popis / Zadání</label>
+                        <InputTextArea class="form-control" rows="4" @bind-Value="activityModel.Description" placeholder="Detailní instrukce pro studenty..." />
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Třída</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-people"></i></span>
+                                <InputSelect class="form-select" @bind-Value="selectedClassId">
+                                    <option value="">-- Vyber třídu --</option>
+                                    @foreach (var c in classes)
+                                    {
+                                        <option value="@c.Id">@c.Name</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Předmět</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-book"></i></span>
+                                <InputSelect class="form-select" @bind-Value="selectedSubjectId" disabled="@(!selectedClassId.HasValue)">
+                                    <option value="">-- Vyber předmět --</option>
+                                    @foreach (var s in subjects.Where(s => classTeacherSubjects.Any(cts => cts.ClassId == selectedClassId && cts.SubjectId == s.Id)))
+                                    {
+                                        <option value="@s.Id">@s.Name</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* --- DYNAMICKÁ SEKCE PODLE TYPU AKTIVITY --- *@
+
+            @if (activityModel.Type == ActivityType.Code)
+            {
+                <div class="card shadow-sm border-primary mb-4 animate-fade-in">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 text-primary"><i class="bi bi-code-slash me-2"></i>Konfigurace kódu</h5>
+                        <div style="width: 200px;">
+                            <InputSelect class="form-select form-select-sm" @bind-Value="SelectedLanguage">
+                                <option value="csharp">C#</option>
+                                <option value="python">Python</option>
+                                <option value="java">Java</option>
+                                <option value="javascript">JavaScript</option>
+                            </InputSelect>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <label class="form-label fw-bold">Šablona kódu (výchozí kód pro studenta)</label>
+                        <StandaloneCodeEditor @ref="codeEditor"
+                                              Id="initialCodeEditor"
+                                              CssClass="monaco-container mb-3"
+                                              ConstructionOptions="GetEditorOptions" />
+
+                        <label class="form-label fw-bold mt-2">Očekávaný výstup konzole</label>
+                        <InputTextArea class="form-control font-monospace bg-dark text-success" rows="3" @bind-Value="activityModel.ExpectedOutput" placeholder="Např: Hello World" />
+                    </div>
+                </div>
+            }
+
+            @if (activityModel.Type == ActivityType.Test)
+            {
+                <div class="card shadow-sm border-warning mb-4">
+                    <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-list-check me-2"></i>Otázky testu</h5>
+                        <button type="button" class="btn btn-sm btn-dark" @onclick="AddQuestion">
+                            <i class="bi bi-plus-lg"></i> Přidat otázku
+                        </button>
+                    </div>
+                    <div class="card-body bg-light">
+                        @foreach (var (question, index) in testQuestions.Select((q, i) => (q, i)))
+                        {
+                            <div class="card mb-3 shadow-sm border-0">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="badge bg-secondary">Otázka #@(index + 1)</span>
+                                    </div>
+                                    <div class="row g-2">
+                                        <div class="col-md-7">
+                                            <InputText class="form-control" @bind-Value="question.Text" placeholder="Zadejte text otázky..." />
+                                        </div>
+                                        <div class="col-md-3">
+                                            <InputSelect class="form-select" @bind-Value="question.Type">
+                                                @foreach (var qt in Enum.GetValues<QuestionType>())
+                                                {
+                                                    <option value="@qt">@qt</option>
+                                                }
+                                            </InputSelect>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <div class="input-group">
+                                                <InputNumber class="form-control" @bind-Value="question.Points" placeholder="Body" />
+                                                <span class="input-group-text">b.</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    @if (question.Type == QuestionType.OpenText)
+                                    {
+                                        <div class="mt-3 bg-light p-2 rounded border">
+                                            <label class="form-label small fw-bold">Správná odpověď</label>
+                                            <InputText class="form-control border-success" @bind-Value="question.CorrectAnswerText" />
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="mt-3">
+                                            <label class="form-label small fw-bold">Možnosti odpovědi</label>
+                                            @foreach (var option in question.Options)
+                                            {
+                                                <div class="input-group mb-1">
+                                                    <div class="input-group-text">
+                                                        <InputCheckbox class="form-check-input mt-0" @bind-Value="option.IsCorrect" />
+                                                        <span class="ms-2 small">Správně</span>
+                                                    </div>
+                                                    <InputText class="form-control form-control-sm" @bind-Value="option.Text" />
+                                                </div>
+                                            }
+                                            <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 mt-1" @onclick="() => AddOption(question)">
+                                                <i class="bi bi-plus-circle"></i> Přidat možnost
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (activityModel.Type == ActivityType.CodeFill)
+            {
+                <div class="card shadow-sm border-info mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="bi bi-braces me-2"></i>Kódová doplňovačka</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info py-2 mb-3">
+                            <i class="bi bi-lightbulb me-2"></i>Napiš do šablony <code>{{blank1}}</code>, <code>{{blank2}}</code> — systém pro ně vygeneruje pole pro odpověď.
+                        </div>
+
+                        <StandaloneCodeEditor @ref="fillCodeEditor"
+                                              Id="fillTemplateEditor"
+                                              CssClass="monaco-fill mb-3"
+                                              ConstructionOptions="GetEditorOptionsFill"
+                                              OnDidChangeModelContent="HandleTemplateChanged" />
+
+                        @if (fillAnswers.Any())
+                        {
+                            <div class="bg-light p-3 rounded border">
+                                <h6 class="fw-bold mb-3"><i class="bi bi-pencil-square me-2"></i>Definice odpovědí</h6>
+                                <div class="row g-3">
+                                    @foreach (var (key, value) in fillAnswers)
+                                    {
+                                        <div class="col-md-4">
+                                            <div class="input-group input-group-sm">
+                                                <span class="input-group-text bg-secondary text-white fw-bold">@key</span>
+                                                <InputText class="form-control border-secondary" @bind-Value="fillAnswers[key]" />
+                                                <button class="btn btn-outline-danger" type="button" @onclick="() => RemoveBlank(key)">
+                                                    <i class="bi bi-x"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="bi bi-gear me-2"></i>Konfigurace</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-primary">Typ aktivity</label>
+                        <InputSelect class="form-select border-primary" @bind-Value="activityModel.Type">
+                            @foreach (var type in Enum.GetValues<ActivityType>())
+                            {
+                                <option value="@type">@type</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold">Max. body</label>
+                            <InputNumber class="form-control" @bind-Value="activityModel.MaxPoints" />
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold">Max. pokusů</label>
+                            <InputNumber class="form-control" @bind-Value="activityModel.MaxAttempts" />
+                            <div class="form-text small">0 = neomezeně</div>
+                        </div>
+                    </div>
+
+                    <div class="form-check form-switch mb-4">
+                        <InputCheckbox class="form-check-input" id="autoGraded" @bind-Value="activityModel.IsAutoGraded" />
+                        <label class="form-check-label fw-bold" for="autoGraded">Automatické hodnocení</label>
+                    </div>
+
+                    <hr />
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch mb-2">
+                            <InputCheckbox class="form-check-input" id="hasDueDate" @bind-Value="hasDueDate" />
+                            <label class="form-check-label fw-bold" for="hasDueDate">Nastavit termín</label>
+                        </div>
+
+                        @if (hasDueDate)
+                        {
+                            <div class="p-3 bg-light border rounded shadow-sm animate-fade-in">
+                                <div class="mb-2">
+                                    <label class="form-label small mb-1">Datum</label>
+                                    <InputDate class="form-control form-control-sm" @bind-Value="dueDateOnly" />
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label small mb-1">Čas</label>
+                                    <InputDate Type="InputDateType.Time" class="form-control form-control-sm" @bind-Value="dueTimeOnly" />
+                                </div>
+                                @if (combinedDueDate.HasValue)
+                                {
+                                    <div class="text-center mt-2">
+                                        <span class="badge bg-info text-dark">
+                                            <i class="bi bi-calendar-event me-1"></i> @combinedDueDate.Value.ToString("dd.MM.yyyy HH:mm")
+                                        </span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="card-footer bg-white border-top-0 p-3">
+                    <button class="btn btn-primary w-100 py-2 shadow-sm" type="submit">
+                        <i class="bi bi-cloud-upload me-2"></i> Vytvořit aktivitu
+                    </button>
+                    <ValidationSummary class="text-danger small mt-2" />
+                </div>
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+<style>
+    .monaco-container {
+        height: 350px;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .monaco-fill {
+        height: 250px;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .form-label {
+        font-size: 0.9rem;
+    }
+
+    .animate-fade-in {
+        animation: fadeIn 0.3s ease-in;
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .input-group-text {
+        background-color: #f8f9fa;
+    }
+</style>
+@code {
+    // Data pro dropdowny
+    private List<ClassTeacherSubject> classTeacherSubjects = new();
+    private List<Class> classes = new();
+    private List<Subject> subjects = new();
+    private int? selectedClassId;
+    private int? selectedSubjectId;
+    private Dictionary<string, string> fillAnswers = new();
+    private StandaloneCodeEditor? fillCodeEditor;
+    private readonly Regex blankRegex = new(@"\{\{(blank\d+)\}\}", RegexOptions.Compiled);
+
+    // Model aktivity
+    private Activity activityModel = new()
+    {
+        CreatedAt = DateTime.UtcNow,
+        IsActive = true,
+        Type = ActivityType.Code
+    };
+    private StandaloneEditorConstructionOptions GetEditorOptionsFill(StandaloneCodeEditor editor) =>
+    new()
+    {
+        AutomaticLayout = true,
+        Language = "csharp",
+        Theme = "vs-dark",
+        Value = activityModel.FillTemplate ?? "// napiš kód s {{blank1}} ..."
+    };
+    // Test otázky
+    private List<Question> testQuestions = new();
+
+    // Code aktivita
+    private StandaloneCodeEditor? codeEditor;
+    private CodeActivityModel codeModel = new() { Language = "csharp" };
+    private readonly Dictionary<string, string> codeTemplates = new()
+    {
+        { "csharp", @"using System;
+
+class Program
+{
+    static void Main()
+    {
+        // Sem napište svůj kód
+    }
+}" },
+        { "python", @"# Sem napište svůj kód
+def main():
+    pass
+
+if __name__ == '__main__':
+    main()" },
+        { "java", @"public class Main {
+    public static void main(String[] args) {
+        // Sem napište svůj kód
+    }
+}" },
+        { "javascript", @"// Sem napište svůj kód
+function main() {
+    console.log('Hello, world!');
+}
+main();" }
+    };
+    private async Task HandleTemplateChanged()
+    {
+        if (fillCodeEditor is null)
+            return;
+
+        var code = await fillCodeEditor.GetValue();
+        activityModel.FillTemplate = code;
+
+        var matches = blankRegex.Matches(code);
+        var newKeys = matches.Select(m => m.Groups[1].Value).Distinct().ToList();
+
+        // Přidej nové blanky
+        foreach (var key in newKeys)
+            if (!fillAnswers.ContainsKey(key))
+                fillAnswers[key] = "";
+
+        // Odstraň neexistující
+        var toRemove = fillAnswers.Keys.Except(newKeys).ToList();
+        foreach (var key in toRemove)
+            fillAnswers.Remove(key);
+
+        StateHasChanged();
+    }
+
+    private void RemoveBlank(string key)
+    {
+        fillAnswers.Remove(key);
+    }
+    // Termín odevzdání
+    private bool hasDueDate = false;
+    private DateTime dueDateOnly = DateTime.Today.AddDays(7);
+    private DateTime dueTimeOnly = new DateTime(DateTime.Today.Year, DateTime.Today.Month, DateTime.Today.Day, 23, 59, 0);
+
+    private DateTime? combinedDueDate => hasDueDate
+        ? new DateTime(dueDateOnly.Year, dueDateOnly.Month, dueDateOnly.Day,
+                       dueTimeOnly.Hour, dueTimeOnly.Minute, dueTimeOnly.Second)
+        : null;
+
+    private string SelectedLanguage
+    {
+        get => codeModel.Language;
+        set
+        {
+            if (codeModel.Language != value)
+            {
+                codeModel.Language = value;
+                _ = ApplyLanguageChange(value);
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Načtení dat z DB
+        classTeacherSubjects = await ClassService.GetAllClassTeacherSubjectsAsync();
+        classes = await ClassService.GetAllClassesAsync();
+        subjects = await SubjectService.GetAllSubjectsAsync();
+
+        // Inicializace kódu
+        if (codeTemplates.TryGetValue(codeModel.Language, out var template))
+            codeModel.InitialCode = template;
+    }
+
+    private StandaloneEditorConstructionOptions GetEditorOptions(StandaloneCodeEditor editor) =>
+        new()
+        {
+            AutomaticLayout = true,
+            Language = codeModel.Language,
+            Value = codeModel.InitialCode
+        };
+
+    private async Task ApplyLanguageChange(string newLang)
+    {
+        if (codeTemplates.TryGetValue(newLang, out var template))
+        {
+            codeModel.InitialCode = template;
+            if (codeEditor is not null)
+                await codeEditor.SetValue(template);
+        }
+
+        if (codeEditor is not null)
+        {
+            var model = await codeEditor.GetModel();
+            if (model is not null)
+                await BlazorMonaco.Editor.Global.SetModelLanguage(JS, model, newLang);
+        }
+    }
+
+    private void AddQuestion()
+    {
+        testQuestions.Add(new Question
+        {
+            Text = "Nová otázka",
+            Type = QuestionType.SingleChoice,
+            Options = new List<AnswerOption>
+            {
+                new AnswerOption { Text = "Odpověď 1" },
+                new AnswerOption { Text = "Odpověď 2" }
+            }
+        });
+    }
+
+    private void AddOption(Question question)
+    {
+        question.Options.Add(new AnswerOption { Text = "Nová možnost" });
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        // Přiřazení ClassTeacherSubjectId
+        var cts = classTeacherSubjects.FirstOrDefault(x => x.ClassId == selectedClassId && x.SubjectId == selectedSubjectId);
+        if (cts == null)
+        {
+            await JS.InvokeVoidAsync("alert", "Chybná kombinace třídy a předmětu.");
+            return;
+        }
+        activityModel.ClassTeacherSubjectId = cts.Id;
+
+        // Termín odevzdání
+        activityModel.DueDate = (hasDueDate && combinedDueDate.HasValue) ? combinedDueDate.Value.ToUniversalTime() : null;
+
+        // Code aktivita
+        if (activityModel.Type == ActivityType.Code && codeEditor is not null)
+        {
+            codeModel.InitialCode = await codeEditor.GetValue();
+            activityModel.InitialCode = codeModel.InitialCode;
+
+            activityModel.LanguageId = codeModel.Language switch
+            {
+                "csharp" => 51,
+                "python" => 71,
+                "java" => 62,
+                "javascript" => 63,
+                _ => 51
+            };
+        }
+        // 🟢 CodeFill aktivita
+        if (activityModel.Type == ActivityType.CodeFill)
+        {
+            // pokud jsou prázdné odpovědi, upozorni učitele
+            if (fillAnswers.Count == 0)
+            {
+                await JS.InvokeVoidAsync("alert", "Nejsou vyplněny žádné správné odpovědi pro doplňovačku.");
+                return;
+            }
+
+            // ulož správné odpovědi do JSON
+            activityModel.CorrectFillJson = JsonSerializer.Serialize(fillAnswers);
+        }
+
+        // Získání ID učitele
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity?.IsAuthenticated != true) return;
+
+        int teacherId = int.Parse(user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+
+        try
+        {
+            int activityId;
+
+            if (activityModel.Type == ActivityType.Test)
+            {
+                foreach (var q in testQuestions)
+                {
+                    if (q.Options == null || !q.Options.Any())
+                        q.Options = new List<AnswerOption> { new AnswerOption { Text = "Defaultní odpověď" } };
+                }
+
+                activityId = await ActivityService.CreateActivityWithQuestionsAsync(activityModel, testQuestions, teacherId, activityModel.ClassTeacherSubjectId);
+            }
+            else
+            {
+                activityId = await ActivityService.CreateActivityAsync(activityModel, teacherId, activityModel.ClassTeacherSubjectId);
+            }
+
+            Navigation.NavigateTo($"/activity-detail/{activityId}");
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Chyba při vytváření aktivity: {ex.Message}");
+        }
+    }
+}

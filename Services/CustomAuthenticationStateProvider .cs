@@ -61,7 +61,9 @@ public class CustomAuthenticationStateProvider : AuthenticationStateProvider
                 new(ClaimTypes.Email, user.Email),
                 new(ClaimTypes.GivenName, user.FirstName),
                 new(ClaimTypes.Surname, user.LastName),
-                new(ClaimTypes.Role, user.Role.ToString())
+                new(ClaimTypes.Role, user.Role.ToString()),
+                new Claim("ProfilePicturePath", user.ProfilePicturePath ?? "")
+
             }, "CustomAuth"));
 
             return new AuthenticationState(claimsPrincipal);

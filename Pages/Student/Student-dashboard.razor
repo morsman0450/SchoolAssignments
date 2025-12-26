@@ -1,0 +1,292 @@
+﻿@page "/student-dashboard"
+@using SchoolAssignments.DTOs
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+
+@attribute [Authorize(Roles = "Student")]
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IActivityService ActivityService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Studentský Dashboard</PageTitle>
+
+<div class="container py-4 pb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-0 text-dark">🎓 Studentský dashboard</h2>
+            <p class="text-muted">Vítej zpět! Tady je přehled tvého studia a úkolů.</p>
+        </div>
+        <div class="text-end d-none d-md-block">
+            <span class="badge bg-light text-dark border p-2">
+                <i class="bi bi-calendar3 me-2"></i>@DateTime.Now.ToString("dd. MMMM yyyy")
+            </span>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-5">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100 overflow-hidden">
+                <div class="card-body p-4 position-relative">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-uppercase fw-bold text-muted small mb-1">Celkové body</h6>
+                            <h2 class="fw-bold mb-0 text-primary">@totalPoints <small class="fs-5 text-muted fw-normal">/ @maxPoints</small></h2>
+                        </div>
+                        <div class="stats-icon bg-primary-soft text-primary">
+                            <i class="bi bi-trophy-fill"></i>
+                        </div>
+                    </div>
+                    <div class="progress mt-3" style="height: 6px;">
+                        <div class="progress-bar bg-primary" style="width: @(maxPoints > 0 ? (totalPoints * 100 / maxPoints) : 0)%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-uppercase fw-bold text-muted small mb-1">Splněno</h6>
+                            <h2 class="fw-bold mb-0 text-success">@completedActivities</h2>
+                        </div>
+                        <div class="stats-icon bg-success-soft text-success">
+                            <i class="bi bi-check-circle-fill"></i>
+                        </div>
+                    </div>
+                    <p class="text-muted small mb-0 mt-3">Skvělá práce! Jen tak dál.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-uppercase fw-bold text-muted small mb-1">K odevzdání</h6>
+                            <h2 class="fw-bold mb-0 text-danger">@pendingActivities</h2>
+                        </div>
+                        <div class="stats-icon bg-danger-soft text-danger">
+                            <i class="bi bi-clock-history"></i>
+                        </div>
+                    </div>
+                    <p class="text-muted small mb-0 mt-3 text-truncate">Nejbližší termín: <span class="fw-bold">@GetNextDeadline()</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm overflow-hidden">
+        <div class="card-header bg-white py-3 border-0">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold mb-0"><i class="bi bi-collection me-2"></i>Moje aktivity</h5>
+                <div class="badge bg-light text-dark fw-normal border">Celkem: @studentActivities?.Count()</div>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light border-top border-bottom">
+                    <tr class="text-muted small text-uppercase">
+                        <th class="ps-4 py-3">Aktivita</th>
+                        <th>Předmět</th>
+                        <th class="text-center">Získané Body</th>
+                        <th>Termín</th>
+                        <th class="text-center">Status</th>
+                        <th class="pe-4 text-end">Akce</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (studentActivities is not null && studentActivities.Any())
+                    {
+                        @foreach (var a in studentActivities)
+                        {
+                            var sub = GetLatestSubmission(a);
+                            var isLate = a.DueDate < DateTime.Now && sub == null;
+
+                            <tr>
+                                <td class="ps-4 py-3">
+                                    <div class="fw-bold text-dark">@a.Title</div>
+                                    <div class="small text-muted d-md-none">@a.ClassTeacherSubject.Subject.Name</div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info-soft text-info border-0 rounded-pill px-3 fw-medium">
+                                        @a.ClassTeacherSubject.Subject.Name
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    @if (sub?.Points != null)
+                                    {
+                                        <span class="fw-bold text-primary">@sub.Points</span> <span class="text-muted small">/ @a.MaxPoints</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">- / @a.MaxPoints</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (a.DueDate.HasValue)
+                                    {
+                                        <div class="@(isLate ? "text-danger fw-bold" : "text-muted") small">
+                                            <i class="bi bi-calendar-event me-1"></i>
+                                            @a.DueDate.Value.ToString("dd.MM.yyyy")
+                                            <div class="extra-small opacity-75">@a.DueDate.Value.ToString("HH:mm")</div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted opacity-50 small">Bez termínu</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    @if (sub?.Status == SubmissionStatus.Graded)
+                                    {
+                                        <span class="badge bg-success-soft text-success rounded-pill fw-bold">
+                                            <i class="bi bi-check2-all me-1"></i> Hodnoceno
+                                        </span>
+                                    }
+                                    else if (sub?.Status == SubmissionStatus.Submitted)
+                                    {
+                                        <span class="badge bg-warning-soft text-warning rounded-pill fw-bold">
+                                            <i class="bi bi-hourglass-split me-1"></i> Čeká na opravu
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge @(isLate ? "bg-danger" : "bg-danger-soft text-danger") rounded-pill fw-bold">
+                                            <i class="bi bi-exclamation-circle me-1"></i> Neodevzdáno
+                                        </span>
+                                    }
+                                </td>
+                                <td class="pe-4 text-end">
+                                    <button class="btn btn-sm btn-white border shadow-sm rounded-pill px-3 py-1" @onclick="() => OpenActivity(a.Id)">
+                                        Otevřít <i class="bi bi-arrow-right ms-1"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="6" class="text-center py-5">
+                                <i class="bi bi-clipboard2-x text-muted display-6 d-block mb-3"></i>
+                                <span class="text-muted">Momentálně nemáš žádné úkoly. Užij si volno!</span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* SOFT BARVY PRO BADGE A IKONY */
+    .bg-primary-soft { background-color: rgba(13, 110, 253, 0.1); }
+    .bg-success-soft { background-color: rgba(25, 135, 84, 0.1); }
+    .bg-danger-soft { background-color: rgba(220, 53, 69, 0.1); }
+    .bg-warning-soft { background-color: rgba(255, 193, 7, 0.1); }
+    .bg-info-soft { background-color: rgba(13, 202, 240, 0.1); }
+
+    .stats-icon {
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        font-size: 1.5rem;
+    }
+
+    .extra-small {
+        font-size: 0.7rem;
+    }
+
+    .btn-white {
+        background: #fff;
+    }
+    .btn-white:hover {
+        background: #f8f9fa;
+    }
+
+    /* Zpřehlednění tabulky */
+    .table thead th {
+        font-weight: 600;
+        letter-spacing: 0.03em;
+    }
+
+    .table-hover tbody tr:hover {
+        background-color: rgba(13, 110, 253, 0.02);
+        cursor: pointer;
+    }
+</style>
+
+@code {
+    // Pomocná metoda pro získání textu nejbližšího termínu
+    private string GetNextDeadline() {
+        var next = studentActivities?
+            .Where(a => a.DueDate > DateTime.Now && GetLatestSubmission(a) == null)
+            .OrderBy(a => a.DueDate)
+            .FirstOrDefault();
+        
+        return next?.DueDate?.ToString("dd.MM.") ?? "Žádný";
+    }
+}
+
+@code {
+    private ClaimsPrincipal? user;
+    private int studentId;
+
+    private int totalPoints;
+    private int maxPoints;
+    private int completedActivities;
+    private int pendingActivities;
+
+    private List<Activity> studentActivities = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        user = authState.User;
+
+        if (user?.Identity?.IsAuthenticated != true) return;
+
+        studentId = int.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        // Použiješ původní metodu, která vrací List<Activity>
+        studentActivities = await ActivityService.GetStudentActivitiesAsync(studentId);
+
+        // Spočítej přehledové karty
+        totalPoints = studentActivities
+            .SelectMany(a => a.Submissions.Where(s => s.StudentId == studentId))
+            .Sum(s => s.Points ?? 0);
+
+        maxPoints = studentActivities.Sum(a => a.MaxPoints);
+
+        completedActivities = studentActivities
+            .Count(a => a.Submissions.Any(s => s.StudentId == studentId && s.Status == SubmissionStatus.Graded));
+
+        pendingActivities = studentActivities
+            .Count(a => a.Submissions.Any(s => s.StudentId == studentId && s.Status == SubmissionStatus.Submitted));
+    }
+
+    private Submission? GetLatestSubmission(Activity activity)
+    {
+        return activity.Submissions
+            .Where(s => s.StudentId == studentId)
+            .OrderByDescending(s => s.SubmittedAt)
+            .FirstOrDefault();
+    }
+    private void OpenActivity(int activityId)
+    {
+        Navigation.NavigateTo($"/take-activity/{activityId}");
+    
+    }
+}
+

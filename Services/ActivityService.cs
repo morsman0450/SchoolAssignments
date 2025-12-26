@@ -154,5 +154,10 @@ namespace SchoolAssignments.Services
                 await _context.SaveChangesAsync();
             }
         }
+
+        public async Task<int> GetActiveActivitiesCountAsync()
+        {
+            return await _context.Activities.CountAsync(a => a.IsActive);
+        }
     }
 }

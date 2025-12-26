@@ -15,8 +15,9 @@ namespace SchoolAssignments.Services
         Task DeleteActivityAsync(int activityId);
         Task<List<Activity>> GetPastTeacherActivitiesAsync(int teacherId);
         Task<List<Activity>> GetPastStudentActivitiesAsync(int studentId);
+        Task<int> GetActiveActivitiesCountAsync();
 
-        
+
 
     }
 }

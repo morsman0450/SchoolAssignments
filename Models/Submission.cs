@@ -31,6 +31,8 @@
         public string? Stderr { get; set; }        // stderr z Judge0
         public int? ExitCode { get; set; }         // návratový kód
 
+        public string? FillAnswersJson { get; set; }
+
         // Navigační vlastnosti
         public Activity Activity { get; set; } = null!;
         public User Student { get; set; } = null!;

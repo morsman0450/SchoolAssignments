@@ -12,6 +12,7 @@ namespace SchoolAssignments.Services
         Task<bool> IsEmailAvailableAsync(string email);
         Task<User?> UpdateUserAsync(User user);
         Task<User?> ChangePassword(User user, string newPassword, string currentPassword);
+        Task<bool> CreateUserAsync(RegisterModel model);
     }
  
 }

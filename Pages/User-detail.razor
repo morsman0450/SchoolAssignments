@@ -58,6 +58,21 @@
                         </div>
                     </div>
                 </div>
+                <div class="text-center mb-4">
+                    <img src="@GetProfilePicture()" alt="Profilová fotka" class="rounded-circle shadow" style="width: 120px; height: 120px; object-fit: cover;" />
+
+                    <div class="mt-3">
+                        <InputFile OnChange="UploadProfilePicture" accept="image/*" />
+                        @if (isUploading)
+                        {
+                            <div class="spinner-border spinner-border-sm text-primary ms-2" role="status"></div>
+                        }
+                        @if (!string.IsNullOrEmpty(uploadMessage))
+                        {
+                            <div class="mt-2 alert @(uploadSuccess ? "alert-success" : "alert-danger")">@uploadMessage</div>
+                        }
+                    </div>
+                </div>
 
                 <!-- Akce s uživatelem -->
                 <div class="card">
@@ -75,27 +90,16 @@
                             <button class="btn btn-secondary" @onclick="GoBack">
                                 <i class="fas fa-arrow-left"></i> Zpět
                             </button>
-                            <button class="btn btn-danger" @onclick="ShowDeleteModal">
-                                <i class="fas fa-trash"></i> Smazat
-                            </button>
+                            <AuthorizeView Roles="Admin">
+                                <button class="btn btn-danger" @onclick="ShowDeleteModal">
+                                    <i class="fas fa-trash"></i> Smazat
+                                </button>
+                            </AuthorizeView>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Sidebar s dodatečnými informacemi -->
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">Statistiky</h5>
-                    </div>
-                    <div class="card-body">
-                        <p><strong>Aktivní úkoly:</strong> @activeAssignments</p>
-                        <p><strong>Dokončené úkoly:</strong> @completedAssignments</p>
-                        <p><strong>Celkový počet úkolů:</strong> @totalAssignments</p>
-                    </div>
-                </div>
-            </div>
         </div>
     }
 </div>
@@ -255,7 +259,9 @@
     private string? passwordValidationMessage;
     private string currentPassword = ""; // Pro případné ověření aktuálního hesla, pokud je potřeba
 
-
+    private bool isUploading = false;
+    private string? uploadMessage;
+    private bool uploadSuccess = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -282,7 +288,55 @@
         user = await UserService.GetUserByIdAsync(Id);
         await LoadUserData();
     }
+    private async Task UploadProfilePicture(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            if (user == null) return;
 
+            var file = e.File;
+            if (file == null)
+            {
+                uploadMessage = "Soubor nebyl vybrán.";
+                uploadSuccess = false;
+                return;
+            }
+
+            isUploading = true;
+            uploadMessage = null;
+
+            using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024); // max 5 MB
+            var updatedUser = await UserService.UpdateProfilePictureAsync(user.Id, stream, file.Name);
+
+            if (updatedUser != null)
+            {
+                user = updatedUser;
+                uploadMessage = "Profilová fotka byla úspěšně nahrána.";
+                uploadSuccess = true;
+            }
+            else
+            {
+                uploadMessage = "Nepodařilo se uložit fotku.";
+                uploadSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            uploadMessage = $"Chyba při nahrávání: {ex.Message}";
+            uploadSuccess = false;
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    private string GetProfilePicture()
+    {
+        return string.IsNullOrEmpty(user?.ProfilePicturePath)
+            ? "/images/default-avatar.png"
+            : user.ProfilePicturePath!;
+    }
     private void ShowEditModal()
     {
         PrepareEdit();

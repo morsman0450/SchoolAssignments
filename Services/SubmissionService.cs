@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SchoolAssignments.Data;
 using SchoolAssignments.Models;
 using System.Globalization;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace SchoolAssignments.Services
@@ -80,61 +81,108 @@ namespace SchoolAssignments.Services
 
         public async Task<Submission> RunAndGradeSubmissionAsync(Submission submission)
         {
-            var result = await _judge.RunCodeAsync(
-                submission.LanguageId!.Value,
+            if (submission.Activity.Type == ActivityType.Code)
+            {
+                var result = await _judge.RunCodeAsync(
+            submission.LanguageId!.Value,
                 submission.Code!,
                 submission.StdInput
             );
 
-            submission.Stderr = !string.IsNullOrEmpty(result.CompileOutput) ? result.CompileOutput : result.Stderr;
-            submission.StdOutput = result.Stdout;
-            submission.ExitCode = result.ExitCode;
+                submission.Stderr = !string.IsNullOrEmpty(result.CompileOutput) ? result.CompileOutput : result.Stderr;
+                submission.StdOutput = result.Stdout;
+                submission.ExitCode = result.ExitCode;
 
-            if (!string.IsNullOrEmpty(submission.Stderr) || (result.ExitCode ?? 0) != 0)
-            {
-                submission.Points = 0;
-                submission.Feedback = $"Kód nešel spustit nebo selhal:\n{submission.Stderr}";
-            }
-            else
-            {
-                var expectedLines = (submission.Activity.ExpectedOutput ?? "")
-                    .Replace("\r\n", "\n")
-                    .Split('\n', StringSplitOptions.RemoveEmptyEntries);
-
-                var actualLines = (result.Stdout ?? "")
-                    .Replace("\r\n", "\n")
-                    .Split('\n', StringSplitOptions.RemoveEmptyEntries);
-
-                int maxTests = expectedLines.Length;
-                int passed = 0;
-
-                for (int i = 0; i < maxTests; i++)
+                if (!string.IsNullOrEmpty(submission.Stderr) || (result.ExitCode ?? 0) != 0)
                 {
-                    string expected = expectedLines[i];
-                    string actual = i < actualLines.Length ? actualLines[i] : "";
+                    submission.Points = 0;
+                    submission.Feedback = $"Kód nešel spustit nebo selhal:\n{submission.Stderr}";
+                }
+                else
+                {
+                    var expectedLines = (submission.Activity.ExpectedOutput ?? "")
+                        .Replace("\r\n", "\n")
+                        .Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
-                    if (CompareOutput(expected, actual))
-                        passed++;
+                    var actualLines = (result.Stdout ?? "")
+                        .Replace("\r\n", "\n")
+                        .Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+                    int maxTests = expectedLines.Length;
+                    int passed = 0;
+
+                    for (int i = 0; i < maxTests; i++)
+                    {
+                        string expected = expectedLines[i];
+                        string actual = i < actualLines.Length ? actualLines[i] : "";
+
+                        if (CompareOutput(expected, actual))
+                            passed++;
+                    }
+
+                    submission.Points = (int)Math.Round((double)passed / maxTests * submission.Activity.MaxPoints);
+
+                    submission.Feedback = submission.Points == submission.Activity.MaxPoints
+                        ? "Výstup odpovídá očekávání."
+                        : $"Správně {passed}/{maxTests} testů.\n\nOčekávaný výstup:\n{submission.Activity.ExpectedOutput}\n\nDostal jsi:\n{result.Stdout}";
                 }
 
-                submission.Points = (int)Math.Round((double)passed / maxTests * submission.Activity.MaxPoints);
+                submission.Status = SubmissionStatus.Graded;
+                submission.SubmittedAt = DateTime.UtcNow;
 
-                submission.Feedback = submission.Points == submission.Activity.MaxPoints
-                    ? "Výstup odpovídá očekávání."
-                    : $"Správně {passed}/{maxTests} testů.\n\nOčekávaný výstup:\n{submission.Activity.ExpectedOutput}\n\nDostal jsi:\n{result.Stdout}";
+                var exists = await _context.Submissions.AnyAsync(s => s.Id == submission.Id);
+                if (exists)
+                    _context.Submissions.Update(submission);
+                else
+                    _context.Submissions.Add(submission);
+
+                await _context.SaveChangesAsync();
+                return submission;
             }
+            else if (submission.Activity.Type == ActivityType.CodeFill)
+            {
+                var correctJson = submission.Activity.CorrectFillJson ?? "{}";
+                var studentJson = submission.FillAnswersJson ?? "{}";
 
-            submission.Status = SubmissionStatus.Graded;
-            submission.SubmittedAt = DateTime.UtcNow;
+                var correct = JsonSerializer.Deserialize<Dictionary<string, string>>(correctJson);
+                var student = JsonSerializer.Deserialize<Dictionary<string, string>>(studentJson);
 
-            var exists = await _context.Submissions.AnyAsync(s => s.Id == submission.Id);
-            if (exists)
-                _context.Submissions.Update(submission);
-            else
+                int total = correct?.Count ?? 0;
+                int correctCount = 0;
+                var feedbackLines = new List<string>();
+
+                if (correct != null && student != null)
+                {
+                    foreach (var kvp in correct)
+                    {
+                        student.TryGetValue(kvp.Key, out var studentValue);
+
+                        if (Normalize(studentValue) == Normalize(kvp.Value))
+                        {
+                            correctCount++;
+                            feedbackLines.Add($"✅ {kvp.Key}: {studentValue}");
+                        }
+                        else
+                        {
+                            feedbackLines.Add($"❌ {kvp.Key}: zadáno '{studentValue}', očekáváno '{kvp.Value}'");
+                        }
+                    }
+                }
+
+                int points = total > 0 ? (int)Math.Round((double)correctCount / total * submission.Activity.MaxPoints) : 0;
+
+                submission.Points = points;
+                submission.Feedback = string.Join("\n", feedbackLines);
+                submission.Status = SubmissionStatus.Graded;
+                submission.SubmittedAt = DateTime.UtcNow;
+
+                // Ulož do DB
                 _context.Submissions.Add(submission);
+                await _context.SaveChangesAsync();
 
-            await _context.SaveChangesAsync();
-            return submission;
+                return submission;
+            }
+            throw new InvalidOperationException("Nepodporovaný typ aktivity pro automatické hodnocení.");
         }
 
 
@@ -161,6 +209,13 @@ namespace SchoolAssignments.Services
             string Normalize(string s) => Regex.Replace(s, @"\s+", " ").Trim().ToLower();
 
             return Normalize(expected) == Normalize(actual);
+        }
+        private string Normalize(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return "";
+
+            return Regex.Replace(text.Trim(), @"\s+", " ").ToLowerInvariant();
         }
 
 
@@ -259,6 +314,30 @@ namespace SchoolAssignments.Services
                     .ThenInclude(sa => sa.AnswerOption)
                 .Include(s => s.Files)
                 .ToListAsync();
+        }
+        public async Task<List<StudentActivitySummary>> GetStudentActivitySummariesByTeacherAsync(int studentId, int teacherId)
+        {
+            var summaries = await _context.Activities
+                .Where(a => a.ClassTeacherSubject.TeacherId == teacherId)
+                .Select(a => new StudentActivitySummary
+                {
+                    ActivityId = a.Id,
+                    Title = a.Title,
+                    MaxPoints = a.MaxPoints,
+                    LatestPoints = a.Submissions
+                                    .Where(s => s.StudentId == studentId)
+                                    .Select(s => s.Points)
+                                    .FirstOrDefault(),
+                    LatestSubmissionDate = a.Submissions
+                                    .Where(s => s.StudentId == studentId)
+                                    .Select(s => s.SubmittedAt)
+                                    .OrderByDescending(d => d)
+                                    .FirstOrDefault(),
+                    AttemptsCount = a.Submissions.Count(s => s.StudentId == studentId)
+                })
+                .ToListAsync();
+
+            return summaries;
         }
 
 

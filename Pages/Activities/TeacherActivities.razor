@@ -1,0 +1,287 @@
+﻿@page "/teacher-activities"
+@using System.Security.Claims
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@inject IActivityService ActivityService
+@inject AuthenticationStateProvider AuthProvider
+@inject NavigationManager Navigation
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-dark">Moje aktivity</h3>
+            <p class="text-muted small mb-0">Správa a přehled vytvořených úkolů pro studenty</p>
+        </div>
+        <button class="btn btn-primary shadow-sm d-flex align-items-center gap-2" @onclick="CreateActivity">
+            <i class="bi bi-plus-circle-fill"></i> Vytvořit novou aktivitu
+        </button>
+    </div>
+
+    @if (activities == null)
+    {
+        <div class="d-flex justify-content-center my-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Načítám...</span>
+            </div>
+        </div>
+    }
+    else if (!activities.Any())
+    {
+        <div class="card border-0 shadow-sm text-center py-5">
+            <div class="card-body">
+                <i class="bi bi-journal-x text-muted mb-3" style="font-size: 3rem;"></i>
+                <h5 class="text-secondary">Zatím jsi nevytvořil žádné aktivity</h5>
+                <p class="text-muted">Začni vytvořením prvního úkolu pro své třídy.</p>
+                <button class="btn btn-outline-primary btn-sm mt-2" @onclick="CreateActivity">Vytvořit aktivitu</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body p-3">
+                <div class="row g-2 align-items-center">
+                    <div class="col-auto me-auto">
+                        <span class="text-muted small fw-bold text-uppercase"><i class="bi bi-funnel me-1"></i> Filtrovat:</span>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select form-select-sm border-light shadow-none bg-light" @bind="selectedSubject">
+                            <option value="">Všechny předměty</option>
+                            @foreach (var subj in subjects)
+                            {
+                                <option value="@subj">@subj</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select form-select-sm border-light shadow-none bg-light" @bind="selectedDueFilter">
+                            <option value="">Všechny termíny</option>
+                            <option value="upcoming">Nadcházející</option>
+                            <option value="overdue">Po termínu</option>
+                            <option value="none">Bez termínu</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select form-select-sm border-light shadow-none bg-light" @bind="selectedReviewFilter">
+                            <option value="">Všechny stavy</option>
+                            <option value="reviewed">Opravené</option>
+                            <option value="notreviewed">Neopravené</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm overflow-hidden">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light border-bottom">
+                        <tr>
+                            <th class="ps-4 py-3 text-secondary small text-uppercase fw-bold">Předmět</th>
+                            <th class="py-3 text-secondary small text-uppercase fw-bold">Název aktivity</th>
+                            <th class="py-3 text-secondary small text-uppercase fw-bold text-center">Vytvořeno</th>
+                            <th class="py-3 text-secondary small text-uppercase fw-bold">Termín odevzdání</th>
+                            <th class="py-3 text-secondary small text-uppercase fw-bold text-end pe-4">Akce</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in filteredActivities)
+                        {
+                            var localDue = a.DueDate?.ToLocalTime();
+                            <tr class="@GetDueDateRowClass(localDue)">
+                                <td class="ps-4">
+                                    <span class="badge rounded-pill bg-info text-dark opacity-75 fw-medium">
+                                        @a.ClassTeacherSubject.Subject.Name
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="fw-bold text-dark">@a.Title</div>
+                                    <div class="text-muted extra-small">ID: #@a.Id</div>
+                                </td>
+                                <td class="text-center text-muted small">
+                                    @a.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy")
+                                    <br />
+                                    <span class="extra-small opacity-50">@a.CreatedAt.ToLocalTime().ToString("HH:mm")</span>
+                                </td>
+                                <td>
+                                    @if (localDue.HasValue)
+                                    {
+                                        <div class="d-flex flex-column">
+                                            <span class="badge @GetDueDateBadgeClass(localDue.Value) mb-1" style="width: fit-content;">
+                                                <i class="bi bi-clock me-1"></i> @localDue.Value.ToString("dd.MM.yyyy HH:mm")
+                                            </span>
+                                            @if (GetDaysUntilDue(localDue.Value) >= 0)
+                                            {
+                                                <small class="text-muted extra-small ps-1">@GetDueDateText(localDue.Value)</small>
+                                            }
+                                            else
+                                            {
+                                                <small class="text-danger fw-bold extra-small ps-1">Po termínu!</small>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small italic">Nenastaven</span>
+                                    }
+                                </td>
+                                <td class="text-end pe-4">
+                                    <div class="btn-group shadow-sm">
+                                        <button class="btn btn-sm btn-white border-light text-primary" title="Odevzdané práce" @onclick="@(() => ReviewActivity(a.Id))">
+                                            <i class="bi bi-journal-check me-1"></i> <span class="d-none d-xl-inline">Výsledky</span>
+                                        </button>
+                                        <button class="btn btn-sm btn-white border-light text-secondary" title="Upravit" @onclick="@(() => EditActivity(a.Id))">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-white border-light text-danger" title="Smazat" @onclick="@(() => DeleteActivity(a.Id))">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer bg-white py-3 border-top-0">
+                <small class="text-muted">Zobrazeno <strong>@filteredActivities.Count()</strong> z celkem <strong>@activities.Count()</strong> aktivit.</small>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .extra-small {
+        font-size: 0.75rem;
+    }
+
+    .italic {
+        font-style: italic;
+    }
+
+    .table-hover tbody tr:hover {
+        background-color: rgba(0, 123, 255, 0.03);
+        transition: background-color 0.2s ease;
+    }
+
+    .btn-white {
+        background-color: #fff;
+    }
+    
+    .btn-white:hover {
+        background-color: #f8f9fa;
+        border-color: #dee2e6;
+    }
+
+    /* Vizuální zvýraznění řádků po termínu (volitelné) */
+    .table-danger-light {
+        background-color: rgba(220, 53, 69, 0.05);
+    }
+</style>
+
+@code {
+    private List<Activity>? activities;
+    private List<string> subjects = new();
+
+    private string? selectedSubject;
+    private string? selectedDueFilter;
+    private string? selectedReviewFilter;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+        var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (int.TryParse(userId, out var teacherId))
+        {
+            activities = await ActivityService.GetTeacherActivitiesAsync(teacherId);
+
+            // naplnění seznamu předmětů
+            subjects = activities
+                .Select(a => a.ClassTeacherSubject.Subject.Name)
+                .Distinct()
+                .OrderBy(s => s)
+                .ToList();
+        }
+        else
+        {
+            activities = new List<Activity>();
+        }
+    }
+
+    // Filtrování
+    private IEnumerable<Activity> filteredActivities => activities
+        .Where(a =>
+            (string.IsNullOrEmpty(selectedSubject) || a.ClassTeacherSubject.Subject.Name == selectedSubject) &&
+            (string.IsNullOrEmpty(selectedDueFilter) ||
+                (selectedDueFilter == "upcoming" && a.DueDate != null && a.DueDate > DateTime.UtcNow) ||
+                (selectedDueFilter == "overdue" && a.DueDate != null && a.DueDate < DateTime.UtcNow) ||
+                (selectedDueFilter == "none" && a.DueDate == null)
+            ) &&
+            (string.IsNullOrEmpty(selectedReviewFilter) ||
+                (selectedReviewFilter == "reviewed" && a.Submissions.Any(s => s.Status == SubmissionStatus.Graded)) ||
+(selectedReviewFilter == "notreviewed" && a.Submissions.Any(s => s.Status != SubmissionStatus.Graded))
+
+            )
+        );
+
+    private void EditActivity(int id) => Navigation.NavigateTo($"/edit-activity/{id}");
+    private void CreateActivity() => Navigation.NavigateTo($"/create-activity");
+    private void ReviewActivity(int id) => Navigation.NavigateTo($"/activity-submissions/{id}");
+
+    private async void DeleteActivity(int id)
+    {
+        await ActivityService.DeleteActivityAsync(id);
+
+        var state = await AuthProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+        var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (int.TryParse(userId, out var teacherId))
+        {
+            activities = await ActivityService.GetTeacherActivitiesAsync(teacherId);
+            subjects = activities
+                .Select(a => a.ClassTeacherSubject.Subject.Name)
+                .Distinct()
+                .OrderBy(s => s)
+                .ToList();
+        }
+        StateHasChanged();
+    }
+
+    // Metody pro určení vzhledu podle due date
+    private string GetDueDateRowClass(DateTime? dueDate)
+    {
+        if (!dueDate.HasValue) return "";
+        var daysUntil = GetDaysUntilDue(dueDate.Value);
+        if (daysUntil < 0) return "due-overdue";
+        if (daysUntil <= 1) return "due-urgent";
+        if (daysUntil <= 3) return "due-soon";
+        return "";
+    }
+
+    private string GetDueDateBadgeClass(DateTime dueDate)
+    {
+        var daysUntil = GetDaysUntilDue(dueDate);
+        if (daysUntil < 0) return "badge-due-overdue";
+        if (daysUntil <= 1) return "badge-due-urgent";
+        if (daysUntil <= 3) return "badge-due-soon";
+        return "badge-due-normal";
+    }
+
+    private int GetDaysUntilDue(DateTime dueDate)
+    {
+        var localDue = dueDate.ToLocalTime();
+        return (int)(localDue.Date - DateTime.Now.Date).TotalDays;
+    }
+
+    private string GetDueDateText(DateTime dueDate)
+    {
+        var daysUntil = GetDaysUntilDue(dueDate);
+        if (daysUntil == 0) return "dnes";
+        if (daysUntil == 1) return "zítra";
+        if (daysUntil > 1) return $"za {daysUntil} dnů";
+        return $"před {Math.Abs(daysUntil)} dny";
+    }
+}

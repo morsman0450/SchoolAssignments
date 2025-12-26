@@ -1,0 +1,236 @@
+﻿@page "/activity-submissions/{ActivityId:int}"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@inject ISubmissionService SubmissionService
+@inject AuthenticationStateProvider AuthProvider
+@inject NavigationManager Navigation
+
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-2">
+            <li class="breadcrumb-item"><a href="/activities" class="text-decoration-none">Moje aktivity</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Odevzdání</li>
+        </ol>
+    </nav>
+
+    @if (isLoading)
+    {
+        <div class="text-center my-5">
+            <div class="spinner-grow text-primary" role="status"></div>
+            <p class="text-muted mt-2">Načítám odevzdané práce...</p>
+        </div>
+    }
+    else if (loadError)
+    {
+        <div class="alert alert-danger d-flex align-items-center shadow-sm" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <div>Nepodařilo se načíst odevzdání. Zkuste to prosím později.</div>
+        </div>
+    }
+    else if (submissions.Any())
+    {
+        var firstSub = submissions.First();
+
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body p-4">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <span class="badge bg-primary-soft text-primary mb-2">Detail aktivity</span>
+                        <h3 class="fw-bold mb-1">@firstSub.Activity.Title</h3>
+                        <p class="text-muted mb-0">@firstSub.Activity.Description</p>
+                    </div>
+                    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                        <div class="d-inline-block text-center px-3 border-end">
+                            <h4 class="fw-bold mb-0">@submissions.Count()</h4>
+                            <small class="text-muted text-uppercase">Celkem</small>
+                        </div>
+                        <div class="d-inline-block text-center px-3">
+                            <h4 class="fw-bold mb-0 text-warning">@submissions.Count(s => !s.Points.HasValue)</h4>
+                            <small class="text-muted text-uppercase">K opravě</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm overflow-hidden">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            @if (isTeacher)
+                            {
+                                <th class="ps-4 py-3 text-secondary small text-uppercase">Student</th>
+                            }
+                            <th class="py-3 text-secondary small text-uppercase">Odevzdáno</th>
+                            <th class="py-3 text-secondary small text-uppercase">Hodnocení</th>
+                            <th class="py-3 text-secondary small text-uppercase" style="width: 30%;">Zpětná vazba</th>
+                            <th class="py-3 text-secondary small text-uppercase text-end pe-4">Akce</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var submission in submissions.OrderByDescending(s => s.SubmittedAt))
+                        {
+                            <tr>
+                                @if (isTeacher)
+                                {
+                                    <td class="ps-4">
+                                        <div class="d-flex align-items-center">
+                                            <div class="avatar-circle me-2">
+                                                @(submission.Student.FirstName[0])@(submission.Student.LastName[0])
+                                            </div>
+                                            <div class="fw-bold text-dark">
+                                                @submission.Student.FirstName @submission.Student.LastName
+                                            </div>
+                                        </div>
+                                    </td>
+                                }
+                                <td class="text-muted small">
+                                    <i class="bi bi-calendar3 me-1"></i> @submission.SubmittedAt.ToLocalTime().ToString("dd.MM.yyyy")
+                                    <br />
+                                    <span class="opacity-75 ps-3">@submission.SubmittedAt.ToLocalTime().ToString("HH:mm")</span>
+                                </td>
+                                <td>
+                                    @if (submission.Points.HasValue)
+                                    {
+                                        <div class="d-flex align-items-center">
+                                            <div class="progress flex-grow-1 me-2" style="height: 6px; min-width: 50px;">
+                                                <div class="progress-bar bg-success" role="progressbar"
+                                                     style="width: @( (double)submission.Points.Value / submission.Activity.MaxPoints * 100 )%"></div>
+                                            </div>
+                                            <span class="fw-bold text-success">
+                                                @submission.Points / @submission.Activity.MaxPoints
+                                            </span>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning-soft text-warning fw-medium">
+                                            <i class="bi bi-clock-history me-1"></i> Čeká na opravu
+                                        </span>
+                                    }
+                                </td>
+                                <td>
+                                    <p class="text-muted small mb-0 text-truncate" style="max-width: 250px;">
+                                        @if (string.IsNullOrEmpty(submission.Feedback))
+                                        {
+                                            <span class="opacity-50 italic">Bez zpětné vazby</span>
+                                        }
+                                        else
+                                        {
+                                            @submission.Feedback
+                                        }
+                                    </p>
+                                </td>
+                                <td class="text-end pe-4">
+                                    <button class="btn btn-sm btn-outline-primary rounded-pill px-3 shadow-none"
+                                            @onclick="() => ViewSubmission(submission.Id)">
+                                        <i class="bi bi-search me-1"></i> Detail
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm text-center p-5">
+            <div class="card-body">
+                <i class="bi bi-inbox text-muted display-4 mb-3"></i>
+                <h5 class="text-secondary">Zatím nikdo neodevzdal</h5>
+                <p class="text-muted">Jakmile studenti začnou odevzdávat svá řešení, uvidíš je zde.</p>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    /* Jemnější barvy pro badge */
+    .bg-primary-soft {
+        background-color: rgba(13, 110, 253, 0.1);
+    }
+
+    .bg-warning-soft {
+        background-color: rgba(255, 193, 7, 0.15);
+    }
+
+    /* Kruhový avatar pro studenta */
+    .avatar-circle {
+        width: 32px;
+        height: 32px;
+        background-color: #6c757d;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+
+    /* Stínování řádků */
+    .table-hover tbody tr:hover {
+        background-color: #fcfcfc;
+    }
+
+    .italic {
+        font-style: italic;
+    }
+
+    /* Responzivní úpravy */
+    @@media (max-width: 768px) {
+        .avatar-circle {
+            display: none;
+        }
+    }
+</style>
+
+@code {
+    [Parameter] public int ActivityId { get; set; }
+
+    private List<Submission> submissions = new();
+    private bool isLoading = true;
+    private bool loadError = false;
+    private bool isTeacher = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            isTeacher = user.IsInRole("Teacher");
+
+            if (isTeacher)
+            {
+                submissions = await SubmissionService.GetSubmissionsByActivityAsync(ActivityId);
+            }
+            else
+            {
+                var userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (int.TryParse(userId, out var studentId))
+                {
+                    submissions = await SubmissionService.GetStudentSubmissionsByActivityAsync(studentId, ActivityId);
+                }
+            }
+        }
+        catch
+        {
+            loadError = true;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ViewSubmission(int submissionId)
+    {
+        Navigation.NavigateTo($"/submission-detail/{submissionId}");
+    }
+}

@@ -14,6 +14,8 @@ Migrations/
 
 # Ignorovat všechny soubory odevzdání
 wwwroot/uploads/submissions/
+wwwroot/uploads/profile_pics/
+
 
 
 # User-specific files

@@ -1,0 +1,336 @@
+﻿@page "/student-activities"
+@using System.Security.Claims
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@inject IActivityService ActivityService
+@inject AuthenticationStateProvider AuthProvider
+@inject NavigationManager Navigation
+
+<div class="container py-5">
+    <div class="d-flex align-items-center mb-5">
+        <div class="bg-primary text-white rounded-3 p-3 me-3 shadow-sm">
+            <i class="bi bi-journal-bookmark-fill fs-2"></i>
+        </div>
+        <div>
+            <h1 class="fw-bold mb-0 text-dark">Moje aktivity</h1>
+            <p class="text-muted mb-0">Přehled tvých úkolů a testů ze všech předmětů</p>
+        </div>
+    </div>
+
+    @if (activities == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Načítám...</span>
+            </div>
+            <p class="mt-3 text-muted fw-medium">Načítám tvé aktivity...</p>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="card h-100 border-0 shadow-sm border-start border-primary border-4">
+                    <div class="card-body py-3">
+                        <small class="text-muted d-block text-uppercase fw-bold extra-small">Celkem</small>
+                        <span class="h2 fw-bold mb-0">@activities.Count</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card h-100 border-0 shadow-sm border-start border-success border-4">
+                    <div class="card-body py-3">
+                        <small class="text-muted d-block text-uppercase fw-bold extra-small">Aktivní</small>
+                        <span class="h2 fw-bold text-success mb-0">@activities.Count(a => !IsOverdue(a) && !IsCompleted(a))</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card h-100 border-0 shadow-sm border-start border-danger border-4">
+                    <div class="card-body py-3">
+                        <small class="text-muted d-block text-uppercase fw-bold extra-small">Po termínu</small>
+                        <span class="h2 fw-bold text-danger mb-0">@activities.Count(a => IsOverdue(a))</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card h-100 border-0 shadow-sm border-start border-info border-4">
+                    <div class="card-body py-3">
+                        <small class="text-muted d-block text-uppercase fw-bold extra-small">Dokončené</small>
+                        <span class="h2 fw-bold text-info mb-0">@activities.Count(a => IsCompleted(a))</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-5 bg-white">
+            <div class="card-body p-4">
+                <div class="row g-3 align-items-end">
+                    <div class="col-lg-5">
+                        <label class="form-label small fw-bold text-secondary">Hledat podle názvu</label>
+                        <div class="input-group border rounded-2 overflow-hidden">
+                            <span class="input-group-text bg-white border-0"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" class="form-control border-0 shadow-none ps-0"
+                                   @bind="searchTerm" @oninput="OnSearchChanged" placeholder="Např. Matematika - Integrály..." />
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-lg-3">
+                        <label class="form-label small fw-bold text-secondary">Předmět</label>
+                        <select class="form-select border shadow-none" value="@selectedSubjectId" @onchange="OnSubjectFilterChanged">
+                            <option value="">Všechny předměty</option>
+                            @foreach (var s in GetSubjects())
+                            {
+                                <option value="@s.Id">@s.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4 col-lg-2">
+                        <label class="form-label small fw-bold text-secondary">Stav</label>
+                        <select class="form-select border shadow-none" value="@selectedStatus" @onchange="OnStatusFilterChanged">
+                            <option value="all">Všechny</option>
+                            <option value="active">Aktivní</option>
+                            <option value="overdue">Po termínu</option>
+                            <option value="completed">Dokončené</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 col-lg-2">
+                        <button class="btn btn-outline-secondary border w-100 fw-bold" @onclick="ClearFilters">
+                            <i class="bi bi-x-lg me-1"></i> Vymazat
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (filteredActivities == null || !filteredActivities.Any())
+        {
+            <div class="text-center py-5 bg-white rounded-4 shadow-sm border border-dashed">
+                <i class="bi bi-search text-muted display-1 opacity-25"></i>
+                <h3 class="mt-3 fw-bold text-dark">Žádné aktivity</h3>
+                <p class="text-muted">Zkus upravit vyhledávání nebo filtry.</p>
+            </div>
+        }
+        else
+        {
+            <div class="row g-4">
+                @foreach (var a in filteredActivities)
+                {
+                    var usedAttempts = a.UsedAttempts;
+                    var maxAttempts = a.MaxAttempts;
+                    var attemptsExceeded = maxAttempts > 0 && usedAttempts >= maxAttempts;
+                    var isOverdue = a.DueDate.HasValue && IsOverdue(a.DueDate.Value);
+
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100 border-0 shadow-sm activity-card">
+                            <div class="status-strip @(attemptsExceeded || isOverdue ? "bg-secondary" : "bg-primary")"></div>
+
+                            <div class="card-body p-4">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <h5 class="card-title fw-bold text-dark mb-0">@a.Title</h5>
+                                    <span class="badge rounded-pill bg-primary-soft text-primary border-0 px-3">
+                                        @a.ClassTeacherSubject.Subject.Name
+                                    </span>
+                                </div>
+
+                                <div class="mb-4">
+                                    <div class="d-flex align-items-center mb-2 text-muted small">
+                                        <i class="bi bi-calendar-event me-2 text-primary"></i>
+                                        <span>Zadáno: <strong>@a.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy")</strong></span>
+                                    </div>
+                                    @if (a.DueDate.HasValue)
+                                    {
+                                        <div class="d-flex align-items-center text-muted small">
+                                            <i class="bi bi-clock-history me-2 @(isOverdue ? "text-danger" : "text-primary")"></i>
+                                            <span class="@(isOverdue ? "text-danger fw-bold" : "")">
+                                                Termín: @a.DueDate.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                                            </span>
+                                        </div>
+                                    }
+                                </div>
+
+                                @if (maxAttempts > 0)
+                                {
+                                    var percentage = (usedAttempts / (double)maxAttempts) * 100;
+                                    <div class="mb-2">
+                                        <div class="d-flex justify-content-between small mb-1 text-muted">
+                                            <span>Pokusy</span>
+                                            <span class="fw-bold text-dark">@usedAttempts / @maxAttempts</span>
+                                        </div>
+                                        <div class="progress rounded-pill shadow-inner" style="height: 8px; background-color: #f0f0f0;">
+                                            <div class="progress-bar @(percentage >= 80 ? "bg-danger" : "bg-primary")"
+                                                 role="progressbar" style="width: @percentage%"></div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="card-footer bg-white p-4 border-top-0 d-flex align-items-center justify-content-between">
+                                <div class="small fw-bold">
+                                    @if (attemptsExceeded)
+                                    {
+                                        <span class="text-danger"><i class="bi bi-slash-circle me-1"></i>Všechny pokusy</span>
+                                    }
+                                    else if (isOverdue)
+                                    {
+
+                                        <span class="text-danger"><i class="bi bi-calendar-x me-1"></i>Po termínu</span>
+                                    }
+                                    else
+                                    {
+
+                                        <span class="text-success"><i class="bi bi-lightning-charge me-1"></i>Můžeš začít</span>
+                                    }
+                                </div>
+
+                                <button class="btn @(attemptsExceeded || isOverdue ? "btn-light text-muted" : "btn-primary shadow-sm") px-4 rounded-pill fw-bold"
+                                        @onclick="@(() => TakeActivity(a.Id))"
+                                        disabled="@(attemptsExceeded || isOverdue)">
+                                    @(attemptsExceeded || isOverdue ? "Uzavřeno" : "Spustit")
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .bg-primary-soft {
+        background-color: rgba(13, 110, 253, 0.1);
+    }
+
+    .extra-small {
+        font-size: 0.7rem;
+    }
+
+    .status-strip {
+        height: 5px;
+        width: 100%;
+        opacity: 0.6;
+    }
+
+    .activity-card {
+        transition: all 0.25s ease;
+    }
+
+        .activity-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 1rem 2rem rgba(0,0,0,0.1) !important;
+        }
+
+    .shadow-inner {
+        box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+    }
+</style>
+
+@code {
+    private List<Activity>? activities;
+    private List<Activity>? filteredActivities;
+    private int? selectedSubjectId;
+    private string searchTerm = string.Empty;
+    private string selectedStatus = "all";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+        var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (int.TryParse(userId, out var studentId))
+        {
+            activities = await ActivityService.GetStudentActivitiesAsync(studentId);
+            ApplyFilters();
+        }
+        else
+        {
+            activities = new List<Activity>();
+            filteredActivities = new List<Activity>();
+        }
+    }
+
+    // NOVÁ METODA: Získá unikátní seznam předmětů z aktivit
+    private List<Subject> GetSubjects()
+    {
+        if (activities == null) return new List<Subject>();
+
+        return activities
+            .Where(a => a.ClassTeacherSubject?.Subject != null)
+            .Select(a => a.ClassTeacherSubject.Subject)
+            .GroupBy(s => s.Id)
+            .Select(g => g.First())
+            .OrderBy(s => s.Name)
+            .ToList();
+    }
+
+    private void ApplyFilters()
+    {
+        if (activities == null) return;
+
+        filteredActivities = activities
+            .Where(a =>
+                (string.IsNullOrWhiteSpace(searchTerm) ||
+                 a.Title.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) &&
+                (!selectedSubjectId.HasValue ||
+                 a.ClassTeacherSubject?.SubjectId == selectedSubjectId.Value) &&
+                (selectedStatus == "all" ||
+                 (selectedStatus == "active" && !IsOverdue(a) && !IsCompleted(a)) ||
+                 (selectedStatus == "overdue" && IsOverdue(a)) ||
+                 (selectedStatus == "completed" && IsCompleted(a)))
+            )
+            .OrderBy(a => IsOverdue(a))
+            .ThenBy(a => a.DueDate ?? DateTime.MaxValue)
+            .ToList();
+    }
+
+    private bool IsOverdue(Activity activity)
+    {
+        return activity.DueDate.HasValue && IsOverdue(activity.DueDate.Value);
+    }
+
+    private bool IsOverdue(DateTime dueDate)
+    {
+        return dueDate.ToLocalTime() < DateTime.Now;
+    }
+
+    private bool IsCompleted(Activity activity)
+    {
+        return activity.MaxAttempts > 0 && activity.UsedAttempts >= activity.MaxAttempts;
+    }
+
+    private async Task OnSearchChanged(ChangeEventArgs e)
+    {
+        searchTerm = e.Value?.ToString() ?? string.Empty;
+        ApplyFilters();
+    }
+
+    private async Task OnSubjectFilterChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var subjectId))
+            selectedSubjectId = subjectId;
+        else
+            selectedSubjectId = null;
+
+        ApplyFilters();
+    }
+
+    private async Task OnStatusFilterChanged(ChangeEventArgs e)
+    {
+        selectedStatus = e.Value?.ToString() ?? "all";
+        ApplyFilters();
+    }
+
+    private void ClearFilters()
+    {
+        searchTerm = string.Empty;
+        selectedSubjectId = null;
+        selectedStatus = "all";
+        ApplyFilters();
+    }
+
+    private void TakeActivity(int id)
+    {
+        Navigation.NavigateTo($"/take-activity/{id}");
+    }
+}

@@ -1,9 +1,77 @@
 ﻿@page "/"
 
-<PageTitle>Index</PageTitle>
+<PageTitle>SchoolAssignments</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="container mt-5">
 
-Welcome to your new app.
+    <!-- Hero sekce -->
+    <div class="text-center mb-5">
+        <h1 class="display-4 fw-bold">SchoolAssignments</h1>
+        <p class="lead text-muted">
+            Moderní webová aplikace pro správu, zadávání a vyhodnocování školních aktivit
+        </p>
+    </div>
 
-<SurveyPrompt Title="How is Blazor working for you?" />
+    <!-- Role karty -->
+    <div class="row g-4">
+
+        <!-- Student -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h4 class="card-title">👨‍🎓 Student</h4>
+                    <p class="card-text">
+                        Vyplňuj testy, odevzdávej úkoly a sleduj své výsledky a hodnocení.
+                    </p>
+                    <a href="/student/activities" class="btn btn-primary">
+                        Moje aktivity
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Učitel -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h4 class="card-title">👩‍🏫 Učitel</h4>
+                    <p class="card-text">
+                        Vytvářej aktivity, opravuj řešení a přiděluj body studentům.
+                    </p>
+                    <a href="/teacher/activities" class="btn btn-success">
+                        Správa aktivit
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Správce -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <h4 class="card-title">🛠 Správce</h4>
+                    <p class="card-text">
+                        Spravuj systém, uživatele a kontroluj automatické vyhodnocování.
+                    </p>
+                    <a href="/admin/dashboard" class="btn btn-dark">
+                        Administrace
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Info sekce -->
+    <div class="mt-5 text-center text-muted">
+        <hr />
+        <p>
+            Aplikace podporuje <strong>testy</strong>, <strong>programovací úlohy</strong>
+            i <strong>ručně hodnocené úkoly</strong>.
+        </p>
+        <p>
+            Vytvořeno pomocí <strong>.NET & Blazor</strong>
+        </p>
+    </div>
+
+</div>

@@ -12,6 +12,8 @@
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; }
         public DateTime? LastLoginAt { get; set; }
+        public string? ProfilePicturePath { get; set; }
+
         // Navigační vlastnosti
         public ICollection<ClassStudent> StudentClasses { get; set; } = new List<ClassStudent>();
         public ICollection<ClassTeacherSubject> TeacherSubjects { get; set; } = new List<ClassTeacherSubject>();

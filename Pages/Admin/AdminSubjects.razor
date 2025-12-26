@@ -1,0 +1,263 @@
+﻿@page "/admin/subjects"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@inject ISubjectService SubjectService
+@inject IJSRuntime JS
+
+<div class="container mt-4 pb-5">
+    <div class="mb-4">
+        <h3 class="fw-bold text-dark mb-1">
+            <i class="bi bi-book-half text-primary me-2"></i>Správa předmětů
+        </h3>
+        <p class="text-muted small">Definujte seznam vyučovaných předmětů, které budou učitelé přiřazovat třídám.</p>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-5 rounded-4">
+        <div class="card-body p-4">
+            <h6 class="text-primary fw-bold text-uppercase small mb-3 ls-1">Nový předmět</h6>
+            <div class="row g-3 align-items-center">
+                <div class="col-md-8">
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0 text-muted">
+                            <i class="bi bi-journal-text"></i>
+                        </span>
+                        <InputText @bind-Value="newSubjectName"
+                                   class="form-control bg-light border-start-0 shadow-none py-2"
+                                   placeholder="Např. Matematika, Anglický jazyk..." />
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-success w-100 py-2 rounded-3 shadow-sm fw-bold d-flex align-items-center justify-content-center gap-2"
+                            @onclick="CreateSubject"
+                            disabled="@isCreating">
+                        @if (isCreating)
+                        {
+                            <span class="spinner-border spinner-border-sm"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-plus-circle-fill"></i>
+                        }
+                        <span>Vytvořit předmět</span>
+                    </button>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(message))
+            {
+                <div class="alert @alertClass mt-3 mb-0 border-0 shadow-sm d-flex align-items-center animate-fade-in" role="alert">
+                    <i class="bi @(alertClass.Contains("success") ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill") me-2"></i>
+                    <div>@message</div>
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+            <p class="mt-3 text-muted fw-medium">Načítám seznam předmětů...</p>
+        </div>
+    }
+    else if (subjects is null || !subjects.Any())
+    {
+        <div class="card border-0 shadow-sm text-center py-5 rounded-4">
+            <div class="card-body">
+                <i class="bi bi-collection display-4 text-muted opacity-25"></i>
+                <h5 class="mt-3 text-secondary">Zatím nejsou vytvořeny žádné předměty</h5>
+                <p class="small text-muted">Přidejte svůj první předmět pomocí formuláře výše.</p>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm overflow-hidden rounded-4">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light border-bottom">
+                        <tr class="text-secondary small text-uppercase fw-bold">
+                            <th class="ps-4 py-3" style="width: 100px;">ID</th>
+                            <th>Název předmětu</th>
+                            <th class="text-end pe-4">Akce</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in subjects)
+                        {
+                            <tr>
+                                <td class="ps-4">
+                                    <span class="badge bg-light text-muted border px-2">#@s.Id</span>
+                                </td>
+                                <td>
+                                    <div class="fw-bold text-dark fs-6">@s.Name</div>
+                                </td>
+                                <td class="text-end pe-4">
+                                    <button class="btn btn-sm btn-outline-danger border-0 rounded-3 px-3 py-2 transition-all hover-danger"
+                                            @onclick="() => ConfirmDelete(s)">
+                                        <i class="bi bi-trash3 me-1"></i> Smazat
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer bg-white py-3 border-top-0">
+                <small class="text-muted">Celkem v katalogu: <strong>@subjects.Count</strong> předmětů.</small>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .ls-1 {
+        letter-spacing: 0.5px;
+    }
+
+    /* Soft design pro vstupy */
+    .input-group-text {
+        border-color: transparent;
+    }
+
+    .form-control:focus {
+        background-color: #fff !important;
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.05) !important;
+    }
+
+    /* Efekt pro mazání */
+    .hover-danger:hover {
+        background-color: rgba(220, 53, 69, 0.1);
+        color: #dc3545;
+    }
+
+    /* Animace */
+    .animate-fade-in {
+        animation: fadeIn 0.3s ease-in;
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .transition-all {
+        transition: all 0.2s ease-in-out;
+    }
+
+    .table-hover tbody tr:hover {
+        background-color: rgba(13, 110, 253, 0.02);
+    }
+</style>
+@code {
+    private List<Subject> subjects = new();
+    private string newSubjectName = string.Empty;
+    private string message = string.Empty;
+    private string alertClass = string.Empty;
+    private bool isLoading = true;
+    private bool isCreating = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSubjectsAsync();
+    }
+
+    private async Task LoadSubjectsAsync()
+    {
+        isLoading = true;
+        try
+        {
+            subjects = await SubjectService.GetAllSubjectsAsync();
+        }
+        catch (Exception ex)
+        {
+            message = "Nepodařilo se načíst seznam předmětů.";
+            alertClass = "alert-danger";
+            await JS.InvokeVoidAsync("console.error", ex.Message);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task CreateSubject()
+    {
+        message = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(newSubjectName))
+        {
+            message = "Zadejte název předmětu.";
+            alertClass = "alert-warning";
+            return;
+        }
+
+        isCreating = true;
+        try
+        {
+            var s = await SubjectService.CreateSubjectAsync(new Subject
+            {
+                Name = newSubjectName.Trim()
+            });
+
+            if (s != null)
+            {
+                subjects.Add(s);
+                message = $"✅ Předmět '{newSubjectName}' byl vytvořen.";
+                alertClass = "alert-success";
+                newSubjectName = string.Empty;
+            }
+            else
+            {
+                message = "Nepodařilo se vytvořit předmět.";
+                alertClass = "alert-danger";
+            }
+        }
+        catch (Exception ex)
+        {
+            message = "Došlo k chybě při vytváření předmětu.";
+            alertClass = "alert-danger";
+            await JS.InvokeVoidAsync("console.error", ex.Message);
+        }
+        finally
+        {
+            isCreating = false;
+        }
+    }
+
+    private async Task ConfirmDelete(Subject s)
+    {
+        bool confirm = await JS.InvokeAsync<bool>("confirm",
+            $"Opravdu chcete smazat předmět '{s.Name}'?");
+        if (confirm)
+        {
+            await DeleteSubject(s.Id);
+        }
+    }
+
+    private async Task DeleteSubject(int id)
+    {
+        try
+        {
+            await SubjectService.DeleteSubjectAsync(id);
+            subjects = subjects.Where(x => x.Id != id).ToList();
+
+            message = "Předmět byl úspěšně smazán.";
+            alertClass = "alert-success";
+        }
+        catch (Exception ex)
+        {
+            message = "Chyba při mazání předmětu.";
+            alertClass = "alert-danger";
+            await JS.InvokeVoidAsync("console.error", ex.Message);
+        }
+    }
+}

@@ -1,0 +1,658 @@
+﻿@page "/take-activity/{ActivityId:int}"
+@using SchoolAssignments.Models
+@using SchoolAssignments.Services
+@using System.Security.Claims
+@using BlazorMonaco
+@using BlazorMonaco.Editor
+@using SchoolAssignments.ViewModels
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Text.RegularExpressions
+@using System.Text.Json
+@inject IActivityService ActivityService
+@inject ISubmissionService SubmissionService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JS
+
+<div class="container mt-4 pb-5">
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+            <p class="mt-3 text-muted">Načítám zadání aktivity...</p>
+        </div>
+    }
+    else if (loadError)
+    {
+        <div class="alert alert-danger shadow-sm d-flex align-items-center" role="alert">
+            <i class="bi bi-exclamation-octagon-fill fs-4 me-3"></i>
+            <div>Nepodařilo se načíst aktivitu. Zkontrolujte prosím připojení k internetu.</div>
+        </div>
+    }
+    else if (activity == null)
+    {
+        <div class="alert alert-warning shadow-sm d-flex align-items-center" role="alert">
+            <i class="bi bi-search fs-4 me-3"></i>
+            <div>Aktivita nebyla nalezena.</div>
+        </div>
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h2 class="fw-bold mb-1 text-primary">@activity.Title</h2>
+                        <p class="text-muted mb-0">@activity.Description</p>
+                    </div>
+                    <span class="badge bg-light text-dark border p-2">
+                        <i class="bi bi-tag-fill me-1 text-primary"></i> @activity.Type
+                    </span>
+                </div>
+                <div class="d-flex gap-3 small text-muted">
+                    <span><i class="bi bi-award me-1"></i> Max. body: <strong>@activity.MaxPoints</strong></span>
+                    @if (activity.DueDate.HasValue)
+                    {
+                        <span><i class="bi bi-clock me-1"></i> Termín: <strong>@activity.DueDate.Value.ToLocalTime().ToString("g")</strong></span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* --- TESTOVÁ AKTIVITA --- *@
+        @if (activity.Type == ActivityType.Test)
+        {
+            <EditForm Model="formModel" OnValidSubmit="HandleTestSubmit">
+                <DataAnnotationsValidator />
+
+                @foreach (var (question, index) in questions.Select((q, i) => (q, i)))
+                {
+                    var qModel = GetQuestionAnswer(question.Id);
+
+                    <div class="card border-0 shadow-sm mb-3">
+                        <div class="card-body p-4">
+                            <h5 class="fw-bold mb-3">
+                                <span class="text-primary me-2">@(index + 1).</span> @question.Text
+                            </h5>
+
+                            @if (question.Type == QuestionType.SingleChoice)
+                            {
+                                <InputRadioGroup @bind-Value="qModel.SelectedOptionId" Name="@($"q_{question.Id}")">
+                                    <div class="d-flex flex-column gap-2 ps-2">
+                                        @foreach (var option in question.Options)
+                                        {
+                                            <div class="form-check custom-option p-2 rounded">
+                                                <InputRadio class="form-check-input ms-1" Value="@((int?)option.Id)" id="@($"opt_{option.Id}")" />
+                                                <label class="form-check-label ms-2 w-100" for="@($"opt_{option.Id}")">
+                                                    @option.Text
+                                                </label>
+                                            </div>
+                                        }
+                                    </div>
+                                </InputRadioGroup>
+                            }
+                            else if (question.Type == QuestionType.MultipleChoice)
+                            {
+                                <div class="d-flex flex-column gap-2 ps-2">
+                                    @foreach (var option in question.Options)
+                                    {
+                                        var optModel = GetOptionAnswer(question.Id, option.Id);
+                                        <div class="form-check custom-option p-2 rounded">
+                                            <InputCheckbox class="form-check-input ms-1" @bind-Value="optModel.IsSelected" id="@($"opt_{option.Id}")" />
+                                            <label class="form-check-label ms-2 w-100" for="@($"opt_{option.Id}")">
+                                                @option.Text
+                                            </label>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            else if (question.Type == QuestionType.OpenText)
+                            {
+                                <div class="ps-2">
+                                    <InputTextArea class="form-control border-light-subtle bg-light"
+                                                   @bind-Value="qModel.OpenTextAnswer"
+                                                   rows="3"
+                                                   placeholder="Vaše odpověď..." />
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <div class="card border-0 shadow-sm bg-primary text-white mt-4">
+                    <div class="card-body d-flex justify-content-between align-items-center p-4">
+                        <p class="mb-0 fw-bold"><i class="bi bi-info-circle me-2"></i> Zkontrolujte si své odpovědi před odesláním.</p>
+                        <button type="submit" class="btn btn-light text-primary fw-bold px-4 py-2">
+                            <i class="bi bi-send-fill me-2"></i> Odevzdat test
+                        </button>
+                    </div>
+                </div>
+            </EditForm>
+        }
+
+        @* --- KÓDOVÁ AKTIVITA --- *@
+        else if (activity.Type == ActivityType.Code)
+        {
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white py-3">
+                    <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-code-square me-2 text-primary"></i>Editor kódu</h5>
+                </div>
+                <div class="card-body">
+                    <StandaloneCodeEditor @ref="codeEditor"
+                                          Id="studentCodeEditor"
+                                          CssClass="monaco-container rounded"
+                                          ConstructionOptions="GetEditorOptions" />
+                </div>
+                <div class="card-footer bg-light p-3 text-end">
+                    <button class="btn btn-primary px-5 fw-bold" @onclick="SubmitCodeActivity">
+                        <i class="bi bi-cloud-upload me-2"></i> Odevzdat řešení
+                    </button>
+                </div>
+            </div>
+        }
+
+        @* --- SOUBOROVÁ AKTIVITA --- *@
+        else if (activity.Type == ActivityType.File)
+        {
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3"><i class="bi bi-file-earmark-arrow-up me-2 text-primary"></i>Nahrát soubory</h5>
+                    <div class="upload-zone border border-2 border-dashed rounded-3 p-5 text-center mb-3 bg-light">
+                        <i class="bi bi-files text-muted display-4"></i>
+                        <p class="mt-2 mb-3">Vyberte soubory k odevzdání (max. 5)</p>
+                        <InputFile OnChange="HandleFilesSelected" multiple class="form-control" />
+                    </div>
+
+                    @if (uploadedFiles.Any())
+                    {
+                        <div class="list-group mb-3">
+                            @foreach (var file in uploadedFiles)
+                            {
+                                <div class="list-group-item d-flex justify-content-between align-items-center border-light shadow-sm mb-1 rounded">
+                                    <span><i class="bi bi-file-earmark me-2"></i> @file.Name <small class="text-muted ms-2">(@(file.Size / 1024) KB)</small></span>
+                                    <button type="button" class="btn btn-sm btn-outline-danger border-0" @onclick="() => RemoveFile(file)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <button class="btn btn-primary w-100 py-2 fw-bold"
+                            @onclick="SubmitFilesAsync"
+                            disabled="@(uploadedFiles.Count == 0)">
+                        Odevzdat soubory
+                    </button>
+                </div>
+            </div>
+        }
+
+        @* --- DPLŇOVAČKA KÓDU --- *@
+        else if (activity.Type == ActivityType.CodeFill)
+        {
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white py-3">
+                    <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-braces me-2 text-primary"></i>Doplňování kódu</h5>
+                </div>
+                <div class="card-body">
+                    <div class="code-fill-box shadow-lg">
+                        @foreach (var part in codeParts)
+                        {
+                            if (part.IsBlank)
+                            {
+                                <input class="code-input shadow-sm"
+                                       @bind="studentAnswers[part.BlankKey]"
+                                       placeholder="..." />
+                            }
+                            else
+                            {
+                                <span class="code-text">@part.Text</span>
+                            }
+                        }
+                    </div>
+                </div>
+                <div class="card-footer bg-light p-3 text-end border-top-0">
+                    <button class="btn btn-primary px-5 fw-bold" @onclick="SubmitCodeFillActivity">
+                        Odevzdat doplňovačku
+                    </button>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .monaco-container {
+        height: 450px;
+        border: 1px solid #dee2e6;
+    }
+
+    /* Vizuální styl pro testové možnosti */
+    .custom-option {
+        transition: background-color 0.2s;
+        cursor: pointer;
+    }
+
+        .custom-option:hover {
+            background-color: #f8f9fa;
+        }
+
+    .form-check-input:checked + .form-check-label {
+        font-weight: bold;
+        color: #0d6efd;
+    }
+
+    /* Kódová doplňovačka - vylepšené barvy */
+    .code-fill-box {
+        background-color: #1e1e1e;
+        color: #dcdcdc;
+        font-family: 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+        white-space: pre-wrap;
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid #333;
+        line-height: 2em;
+        font-size: 0.95rem;
+    }
+
+    .code-text {
+        vertical-align: middle;
+    }
+
+    .code-input {
+        width: 140px;
+        background-color: #2d2d2d;
+        color: #ce9178; /* Barva stringů v VS Code */
+        border: 1px solid #444;
+        border-bottom: 2px solid #007bff;
+        border-radius: 4px;
+        padding: 2px 8px;
+        font-family: inherit;
+        font-weight: bold;
+        margin: 0 4px;
+        vertical-align: middle;
+        transition: all 0.2s;
+    }
+
+        .code-input:focus {
+            outline: none;
+            background-color: #3e3e3e;
+            border-color: #38ef7d;
+            color: #fff;
+        }
+
+    .upload-zone {
+        border-style: dashed !important;
+        transition: background-color 0.2s;
+    }
+
+        .upload-zone:hover {
+            background-color: #f1f3f5 !important;
+        }
+</style>
+@code {
+    [Parameter] public int ActivityId { get; set; }
+
+    private Activity? activity;
+    private List<Question> questions = new();
+    private bool isLoading = true;
+    private bool loadError = false;
+
+    private StandaloneCodeEditor? codeEditor;
+    private string initialCode = string.Empty;
+
+    private TestFormModel formModel = new();
+    private List<IBrowserFile> uploadedFiles = new();
+
+    // ===== TEST MODELY =====
+ 
+
+    public class OptionAnswer
+    {
+        public bool IsSelected { get; set; }
+    }
+
+    private QuestionAnswer GetQuestionAnswer(int questionId)
+    {
+        if (!formModel.Questions.ContainsKey(questionId))
+            formModel.Questions[questionId] = new QuestionAnswer();
+        return formModel.Questions[questionId];
+    }
+
+    private OptionAnswer GetOptionAnswer(int questionId, int optionId)
+    {
+        var qa = GetQuestionAnswer(questionId);
+        if (!qa.Options.ContainsKey(optionId))
+            qa.Options[optionId] = new OptionAnswer();
+        return qa.Options[optionId];
+    }
+
+    // ===== ON INIT =====
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            activity = await ActivityService.GetActivityWithQuestionsAsync(ActivityId);
+
+            if (activity == null)
+            {
+                loadError = true;
+                return;
+            }
+
+            // Získat studentId
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            if (user.Identity == null || !user.Identity.IsAuthenticated)
+            {
+                Navigation.NavigateTo("/student-activities");
+                return;
+            }
+
+            int studentId = int.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+            // Spočítat počet pokusů
+            int usedAttempts = await SubmissionService.GetUsedAttemptsAsync(ActivityId, studentId);
+            if (activity.MaxAttempts > 0 && usedAttempts >= activity.MaxAttempts)
+            {
+                await JS.InvokeVoidAsync("alert", "Vyčerpal/a jste všechny pokusy této aktivity.");
+                Navigation.NavigateTo("/student-activities");
+                return;
+            }
+
+            // Zkontrolovat termín
+            if (activity.DueDate.HasValue && activity.DueDate.Value.ToLocalTime() < DateTime.Now)
+            {
+                await JS.InvokeVoidAsync("alert", "Tato aktivita je po termínu.");
+                Navigation.NavigateTo("/student-activities");
+                return;
+            }
+
+            if (activity.Type == ActivityType.Test)
+            {
+                questions = activity.Questions.ToList();
+
+                // Inicializace modelu odpovědí
+                foreach (var q in questions)
+                {
+                    var qa = GetQuestionAnswer(q.Id);
+                    if (q.Type == QuestionType.MultipleChoice)
+                    {
+                        foreach (var opt in q.Options)
+                        {
+                            GetOptionAnswer(q.Id, opt.Id);
+                        }
+                    }
+                }
+            }
+
+            if (activity.Type == ActivityType.Code)
+                initialCode = activity.InitialCode ?? string.Empty;
+        }
+        catch
+        {
+            loadError = true;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+        if (activity.Type == ActivityType.CodeFill)
+        {
+            await PrepareCodeFillAsync();
+        }
+
+    }
+
+    // ===== TEST SUBMIT =====
+    private async Task HandleTestSubmit()
+    {
+        if (activity == null) return;
+
+        // Získání ID studenta
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity == null || !user.Identity.IsAuthenticated) return;
+
+        int studentId = int.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        // Vytvoření nové submisse
+        var submission = new Submission
+        {
+            ActivityId = ActivityId,
+            StudentId = studentId,
+            SubmittedAt = DateTime.UtcNow
+        };
+
+        var studentAnswerList = new List<StudentAnswer>();
+        int totalPoints = 0;
+
+        foreach (var q in questions)
+        {
+            var qModel = GetQuestionAnswer(q.Id);
+            int questionPoints = 0;
+
+            if (q.Type == QuestionType.SingleChoice && qModel.SelectedOptionId.HasValue)
+            {
+                var selectedOption = q.Options.FirstOrDefault(o => o.Id == qModel.SelectedOptionId.Value);
+                if (selectedOption != null)
+                {
+                    questionPoints = selectedOption.IsCorrect ? q.Points : 0;
+                    studentAnswerList.Add(new StudentAnswer
+                    {
+                        QuestionId = q.Id,
+                        AnswerOptionId = qModel.SelectedOptionId.Value,
+                        PointsAwarded = questionPoints
+                    });
+                }
+            }
+            else if (q.Type == QuestionType.MultipleChoice)
+            {
+                int correctCount = q.Options.Count(o => o.IsCorrect);
+                double pointsPerOption = correctCount > 0 ? (double)q.Points / correctCount : 0;
+
+                double questionPointsDouble = 0;
+
+                foreach (var kvp in qModel.Options)
+                {
+                    var opt = q.Options.FirstOrDefault(o => o.Id == kvp.Key);
+                    if (opt == null) continue;
+
+                    if (opt.IsCorrect && kvp.Value.IsSelected)
+                        questionPointsDouble += pointsPerOption; // správně označeno
+                    else if (!opt.IsCorrect && kvp.Value.IsSelected)
+                        questionPointsDouble -= pointsPerOption / 2; // špatně označeno, penalizace
+                }
+
+                // Omezit body mezi 0 a max otázky
+                questionPoints = (int)Math.Min(Math.Max(Math.Round(questionPointsDouble), 0), q.Points);
+
+                // Uložit studentovy odpovědi
+                foreach (var kvp in qModel.Options)
+                {
+                    var opt = q.Options.FirstOrDefault(o => o.Id == kvp.Key);
+                    if (opt == null) continue;
+
+                    if (kvp.Value.IsSelected)
+                    {
+                        studentAnswerList.Add(new StudentAnswer
+                        {
+                            QuestionId = q.Id,
+                            AnswerOptionId = kvp.Key,
+                            PointsAwarded = questionPoints
+                        });
+                    }
+                }
+            }
+
+            else if (q.Type == QuestionType.OpenText)
+            {
+                string studentText = qModel.OpenTextAnswer?.Trim() ?? "";
+
+                if (activity.IsAutoGraded && !string.IsNullOrEmpty(q.CorrectAnswerText))
+                {
+                    questionPoints = string.Equals(studentText, q.CorrectAnswerText.Trim(), StringComparison.OrdinalIgnoreCase)
+                        ? q.Points
+                        : 0;
+                }
+
+                studentAnswerList.Add(new StudentAnswer
+                {
+                    QuestionId = q.Id,
+                    OpenTextAnswer = studentText,
+                    PointsAwarded = activity.IsAutoGraded ? questionPoints : null
+                });
+            }
+
+
+            totalPoints += questionPoints;
+        }
+
+        // Nastavení celkových bodů a statusu
+        submission.Points = totalPoints;
+        submission.Status = activity.IsAutoGraded ? SubmissionStatus.Graded : SubmissionStatus.Submitted;
+
+        // Uložení submisse
+        await SubmissionService.CreateSubmissionAsync(submission, studentAnswerList);
+
+        // Přesměrování na výsledek
+        Navigation.NavigateTo($"/submission-result/{submission.Id}");
+    }
+
+
+
+    // ===== FILE UPLOAD =====
+    private void HandleFilesSelected(InputFileChangeEventArgs e)
+    {
+        foreach (var file in e.GetMultipleFiles())
+        {
+            if (uploadedFiles.Count >= 5)
+            {
+                JS.InvokeVoidAsync("alert", "Maximálně 5 souborů je povoleno.");
+                break;
+            }
+            uploadedFiles.Add(file);
+        }
+    }
+
+    private void RemoveFile(IBrowserFile file)
+    {
+        uploadedFiles.Remove(file);
+    }
+
+    private async Task SubmitFilesAsync()
+    {
+        if (activity == null || !uploadedFiles.Any()) return;
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity == null || !user.Identity.IsAuthenticated) return;
+
+        int studentId = int.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        var submission = await SubmissionService.UploadFilesAsync(ActivityId, studentId, uploadedFiles);
+
+        Navigation.NavigateTo($"/submission-result/{submission.Id}");
+    }
+
+    // ===== CODE SUBMIT =====
+    private async Task SubmitCodeActivity()
+    {
+        if (activity == null || codeEditor is null) return;
+
+        var studentCode = await codeEditor.GetValue();
+        if (string.IsNullOrWhiteSpace(studentCode)) return;
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity == null || !user.Identity.IsAuthenticated) return;
+
+        int studentId = int.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        var act = await ActivityService.GetActivityWithDetailsAsync(ActivityId);
+        if (act == null) return;
+
+        var submission = new Submission
+        {
+            ActivityId = ActivityId,
+            StudentId = studentId,
+            Code = studentCode,
+            LanguageId = act.LanguageId,
+            StdInput = act.StdInput,
+            Activity = act
+        };
+
+        var graded = await SubmissionService.RunAndGradeSubmissionAsync(submission);
+        Navigation.NavigateTo($"/submission-result/{graded.Id}");
+    }
+
+    private StandaloneEditorConstructionOptions GetEditorOptions(StandaloneCodeEditor editor) =>
+        new()
+        {
+            AutomaticLayout = true,
+            Language = activity?.LanguageId switch
+            {
+                51 => "csharp",
+                71 => "python",
+                62 => "java",
+                63 => "javascript",
+                _ => "csharp"
+            },
+            Value = initialCode
+        };
+    private List<(bool IsBlank, string Text, string BlankKey)> codeParts = new();
+    private Dictionary<string, string> studentAnswers = new();
+
+    private async Task PrepareCodeFillAsync()
+    {
+        if (activity?.FillTemplate == null)
+            return;
+
+        var text = activity.FillTemplate;
+        var matches = Regex.Matches(text, @"\{\{(blank\d+)\}\}");
+        int lastIndex = 0;
+
+        foreach (Match match in matches)
+        {
+            if (match.Index > lastIndex)
+            {
+                codeParts.Add((false, text[lastIndex..match.Index], ""));
+            }
+
+            var key = match.Groups[1].Value;
+            codeParts.Add((true, "", key));
+            studentAnswers[key] = "";
+
+            lastIndex = match.Index + match.Length;
+        }
+
+        if (lastIndex < text.Length)
+            codeParts.Add((false, text[lastIndex..], ""));
+    }
+
+    private async Task SubmitCodeFillActivity()
+    {
+        if (activity == null) return;
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity == null || !user.Identity.IsAuthenticated) return;
+
+        int studentId = int.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        var submission = new Submission
+        {
+            ActivityId = ActivityId,
+            StudentId = studentId,
+            SubmittedAt = DateTime.UtcNow,
+            FillAnswersJson = JsonSerializer.Serialize(studentAnswers),
+            Status = SubmissionStatus.Submitted,
+            Activity = activity 
+        };
+
+        var graded = await SubmissionService.RunAndGradeSubmissionAsync(submission);
+
+        Navigation.NavigateTo($"/submission-result/{graded.Id}");
+    }
+
+}

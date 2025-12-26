@@ -1,4 +1,4 @@
-﻿using static SchoolAssignments.Pages.TakeTest;
+﻿using static SchoolAssignments.Pages.Activities.TakeTest;
 
 namespace SchoolAssignments.ViewModels
 {
