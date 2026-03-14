@@ -49,12 +49,12 @@ namespace SchoolAssignments.Data
                 entity.HasKey(e => e.Id);
 
                 entity.HasOne(e => e.Class)
-                      .WithMany(c => c.ClassTeachers) // musíš přidat ICollection<ClassTeacher> do Class
+                      .WithMany(c => c.ClassTeachers)
                       .HasForeignKey(e => e.ClassId)
                       .OnDelete(DeleteBehavior.Cascade);
 
                 entity.HasOne(e => e.Teacher)
-                      .WithMany() // nebo ICollection<ClassTeacher> do User, pokud chceš
+                      .WithMany()
                       .HasForeignKey(e => e.TeacherId)
                       .OnDelete(DeleteBehavior.Restrict);
             });
@@ -248,7 +248,7 @@ namespace SchoolAssignments.Data
                     FirstName = "System",
                     LastName = "Administrator",
                     Role = UserRole.Admin,
-                    PasswordHash = "...", // zadej hash hesla
+                    PasswordHash = "...", 
                     IsActive = true,
                     CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
                 }

@@ -1,6 +1,8 @@
 ﻿@page "/submission-detail/{SubmissionId:int}"
 @using SchoolAssignments.Models
 @using SchoolAssignments.Services
+@using System.Text.RegularExpressions
+@using System.Text.Json
 @inject ISubmissionService SubmissionService
 @inject AuthenticationStateProvider AuthProvider
 @inject NavigationManager Navigation
@@ -157,6 +159,47 @@
                                 }
                             </div>
                         }
+                        @if (submission.Activity.Type == ActivityType.CodeFill)
+                        {
+                            <div class="card shadow-sm border-0 mb-3">
+                                <div class="card-body">
+                                    <div class="d-flex gap-3 text-muted small">
+                                        <span>Odevzdáno: <b>@submission.SubmittedAt.ToLocalTime().ToString("g")</b></span>
+                                        <span>Status: <b>@submission.Status</b></span>
+                                        @if (submission.Points.HasValue)
+                                        {
+                                            <span>Body: <b>@submission.Points</b></span>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card shadow-sm border-0 mb-3">
+                                <div class="card-header bg-white fw-bold">
+                                    Vyplněný kód
+                                </div>
+                                <div class="card-body">
+                                    <pre class="p-3 rounded bg-dark text-light mb-0" style="white-space:pre-wrap;">
+        @mergedCode
+                    </pre>
+                                </div>
+                            </div>
+
+                            <div class="card shadow-sm border-0">
+                                <div class="card-header bg-white fw-bold">
+                                    Odpovědi
+                                </div>
+                                <div class="card-body">
+                                    @foreach (var kvp in answers.OrderBy(x => x.Key))
+                                    {
+                                        <div class="d-flex align-items-center mb-2">
+                                            <span class="badge bg-secondary me-2" style="min-width:85px;">@kvp.Key</span>
+                                            <code class="flex-grow-1">@kvp.Value</code>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
 
                     </div>
                 </div>
@@ -278,13 +321,23 @@
     private bool isLoading = true;
     private bool loadError = false;
     private bool isTeacher = false;
+    private string mergedCode = "";
+    private Dictionary<string, string> answers = new();
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
             submission = await SubmissionService.GetSubmissionWithDetailsAsync(SubmissionId);
+            if (submission?.Activity?.Type == ActivityType.CodeFill)
+            {
+                answers = string.IsNullOrWhiteSpace(submission.FillAnswersJson)
+                    ? new Dictionary<string, string>()
+                    : JsonSerializer.Deserialize<Dictionary<string, string>>(submission.FillAnswersJson)
+                        ?? new Dictionary<string, string>();
 
+                mergedCode = MergeFillTemplate(submission.Activity.FillTemplate ?? "", answers);
+            }
             var authState = await AuthProvider.GetAuthenticationStateAsync();
             var user = authState.User;
 
@@ -319,5 +372,17 @@
         {
             Navigation.NavigateTo("/my-grades");
         }
+    }
+    private static string MergeFillTemplate(string template, Dictionary<string, string> answers)
+    {
+        if (string.IsNullOrEmpty(template)) return "";
+
+        return Regex.Replace(template, @"\{\{(blank\d+)\}\}", m =>
+        {
+            var key = m.Groups[1].Value;
+            if (answers.TryGetValue(key, out var val) && !string.IsNullOrWhiteSpace(val))
+                return val;
+            return "___"; // nezodpovězeno
+        });
     }
 }
