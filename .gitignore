@@ -8,7 +8,6 @@
 
 
 #my things to ignore
-appsettings.json
 appsettings.Development.json
 Migrations/
 

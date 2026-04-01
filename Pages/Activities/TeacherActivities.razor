@@ -5,6 +5,7 @@
 @inject IActivityService ActivityService
 @inject AuthenticationStateProvider AuthProvider
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -232,6 +233,8 @@
 
     private async void DeleteActivity(int id)
     {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Opravdu chcete smazat tuto aktivitu?"))
+            return;
         await ActivityService.DeleteActivityAsync(id);
 
         var state = await AuthProvider.GetAuthenticationStateAsync();

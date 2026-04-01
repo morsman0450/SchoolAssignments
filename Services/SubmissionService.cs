@@ -187,7 +187,6 @@ namespace SchoolAssignments.Services
 
 
 
-        // --- Tolerantní porovnání ---
         private bool CompareOutput(string expected, string actual, double numberTolerance = 1e-6)
         {
             expected ??= "";
@@ -196,7 +195,6 @@ namespace SchoolAssignments.Services
             expected = expected.Trim();
             actual = actual.Trim();
 
-            // číselné porovnání s tolerancí
             if (double.TryParse(expected, System.Globalization.NumberStyles.Any,
                 System.Globalization.CultureInfo.InvariantCulture, out var e) &&
                 double.TryParse(actual, System.Globalization.NumberStyles.Any,
@@ -205,11 +203,11 @@ namespace SchoolAssignments.Services
                 return Math.Abs(e - a) <= numberTolerance;
             }
 
-            // normální text porovnání (case-insensitive + trim víc mezer)
             string Normalize(string s) => Regex.Replace(s, @"\s+", " ").Trim().ToLower();
 
             return Normalize(expected) == Normalize(actual);
         }
+
         private string Normalize(string? text)
         {
             if (string.IsNullOrWhiteSpace(text))

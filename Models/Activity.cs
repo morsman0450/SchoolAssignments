@@ -25,10 +25,9 @@
         public string? InitialCode { get; set; }
         public string? StdInput { get; set; }
         public string? ExpectedOutput { get; set; }
-        public string? FillTemplate { get; set; } // původní kód s mezerami (___ nebo {{blank1}})
-        public string? CorrectFillJson { get; set; } // JSON se správnými doplněními
+        public string? FillTemplate { get; set; } 
+        public string? CorrectFillJson { get; set; } 
 
-        // Navigace
         public ICollection<Submission> Submissions { get; set; } = new List<Submission>();
         public ICollection<Question> Questions { get; set; } = new List<Question>();
     }
@@ -36,6 +35,6 @@
 
     public enum ActivityType
     {
-        Code = 1, Text = 2, File = 3, Image = 4, Test = 5, CodeFill = 6
+        Code = 1, File = 3, Test = 5, CodeFill = 6
     }
 }

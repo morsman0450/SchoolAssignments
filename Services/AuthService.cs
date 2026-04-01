@@ -15,18 +15,14 @@ namespace SchoolAssignments.Services
         public async Task<User?> LoginAsync(string username, string password)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == username && u.IsActive);
-           
+
             if (user == null || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
             {
-                return null; // Uživatelské jméno nebo heslo je nesprávné
+                return null; 
             }
-
             user.LastLoginAt = DateTime.UtcNow;
-
             await _context.SaveChangesAsync();
-
-            return user; // Přihlášení úspěšné
-
+            return user;
         }
         public async Task<bool?> RegisterAsync(RegisterModel model)
         {

@@ -437,14 +437,14 @@ main();" }
 
     protected override async Task OnInitializedAsync()
     {
-        // Načtení dat z DB
+        if (codeTemplates.TryGetValue(codeModel.Language, out var template))
+            codeModel.InitialCode = template;
+
         classTeacherSubjects = await ClassService.GetAllClassTeacherSubjectsAsync();
         classes = await ClassService.GetAllClassesAsync();
         subjects = await SubjectService.GetAllSubjectsAsync();
-
-        // Inicializace kódu
-        if (codeTemplates.TryGetValue(codeModel.Language, out var template))
-            codeModel.InitialCode = template;
+        
+        
     }
 
     private StandaloneEditorConstructionOptions GetEditorOptions(StandaloneCodeEditor editor) =>

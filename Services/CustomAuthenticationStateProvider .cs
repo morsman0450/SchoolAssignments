@@ -25,27 +25,22 @@ public class CustomAuthenticationStateProvider : AuthenticationStateProvider
     {
         try
         {
-            // Nejprve zkusíme session storage (aktivní přihlášení)
             var sessionResult = await _sessionStorage.GetAsync<UserSession>("UserSession");
             if (sessionResult.Success && sessionResult.Value != null)
             {
                 return await CreateAuthenticationState(sessionResult.Value);
             }
 
-            // Pokud není v session, zkusíme local storage (remember me)
             var localResult = await _localStorage.GetAsync<UserSession>("UserSession");
             if (localResult.Success && localResult.Value != null)
             {
-                // Obnovíme i session storage pro rychlejší přístup
                 await _sessionStorage.SetAsync("UserSession", localResult.Value);
                 return await CreateAuthenticationState(localResult.Value);
             }
         }
         catch
         {
-            // Pokud nastane chyba, vrátíme anonymního uživatele
         }
-
         return new AuthenticationState(_anonymous);
     }
 
@@ -68,7 +63,6 @@ public class CustomAuthenticationStateProvider : AuthenticationStateProvider
 
             return new AuthenticationState(claimsPrincipal);
         }
-
         return new AuthenticationState(_anonymous);
     }
 
