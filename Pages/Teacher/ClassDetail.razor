@@ -1,4 +1,6 @@
 ﻿@page "/class-detail/{ClassId:int}"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Teacher,Admin")]
 @using SchoolAssignments.Models
 @using SchoolAssignments.Services
 @inject IClassService ClassService

@@ -4,72 +4,25 @@
 
 <div class="container mt-5">
 
-    <!-- Hero sekce -->
-    <div class="text-center mb-5">
-        <h1 class="display-4 fw-bold">SchoolAssignments</h1>
-        <p class="lead text-muted">
-            Moderní webová aplikace pro správu, zadávání a vyhodnocování školních aktivit
+    <div class="text-center mb-5 pb-3">
+        <h1 class="display-4 fw-bold text-primary mb-3">SchoolAssignments</h1>
+        <p class="lead text-muted mx-auto" style="max-width: 600px;">
+            Moderní webová platforma pro komplexní správu, zadávání a automatizované vyhodnocování školních aktivit.
         </p>
+
+        <div class="mt-5">
+            <a href="/login" class="btn btn-primary btn-lg px-5 py-3 shadow-sm rounded-pill fw-bold">
+                <i class="oi oi-account-login me-2"></i> Přihlásit se do systému
+            </a>
+        </div>
     </div>
 
-    <!-- Role karty -->
-    <div class="row g-4">
-
-        <!-- Student -->
-        <div class="col-md-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body text-center">
-                    <h4 class="card-title">👨‍🎓 Student</h4>
-                    <p class="card-text">
-                        Vyplňuj testy, odevzdávej úkoly a sleduj své výsledky a hodnocení.
-                    </p>
-                    <a href="/student/activities" class="btn btn-primary">
-                        Moje aktivity
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        <!-- Učitel -->
-        <div class="col-md-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body text-center">
-                    <h4 class="card-title">👩‍🏫 Učitel</h4>
-                    <p class="card-text">
-                        Vytvářej aktivity, opravuj řešení a přiděluj body studentům.
-                    </p>
-                    <a href="/teacher/activities" class="btn btn-success">
-                        Správa aktivit
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        <!-- Správce -->
-        <div class="col-md-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body text-center">
-                    <h4 class="card-title">🛠 Správce</h4>
-                    <p class="card-text">
-                        Spravuj systém, uživatele a kontroluj automatické vyhodnocování.
-                    </p>
-                    <a href="/admin/dashboard" class="btn btn-dark">
-                        Administrace
-                    </a>
-                </div>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- Info sekce -->
-    <div class="mt-5 text-center text-muted">
-        <hr />
-        <p>
-            Aplikace podporuje <strong>testy</strong>, <strong>programovací úlohy</strong>
-            i <strong>ručně hodnocené úkoly</strong>.
+    <div class="mt-5 pt-4 text-center text-muted border-top">
+        <p class="mb-2">
+            Systém podporuje interaktivní <strong>testy</strong>, <strong>programovací úlohy</strong>
+            s automatickou kontrolou kódu i <strong>ručně hodnocené úkoly</strong>.
         </p>
-        <p>
+        <p class="small">
             Vytvořeno pomocí <strong>.NET & Blazor</strong>
         </p>
     </div>

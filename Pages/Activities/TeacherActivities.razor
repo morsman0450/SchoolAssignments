@@ -1,4 +1,6 @@
 ﻿@page "/teacher-activities"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Teacher,Admin")]
 @using System.Security.Claims
 @using SchoolAssignments.Models
 @using SchoolAssignments.Services

@@ -56,7 +56,6 @@ else
 
         if (int.TryParse(userId, out var id))
         {
-            // Zde můžeš rozlišit roli učitele a studenta
             if (user.IsInRole("Teacher"))
             {
                 activities = await ActivityService.GetPastTeacherActivitiesAsync(id);

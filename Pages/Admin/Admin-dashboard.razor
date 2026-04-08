@@ -1,4 +1,6 @@
 ﻿@page "/admin-dashboard"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
 @using SchoolAssignments.Models
 @using SchoolAssignments.Pages.Components
 @using SchoolAssignments.Services

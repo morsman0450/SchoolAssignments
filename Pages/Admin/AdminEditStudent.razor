@@ -1,4 +1,6 @@
 ﻿@page "/admin/edit-student/{StudentId:int}"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
 @using Microsoft.EntityFrameworkCore
 @using SchoolAssignments.Data
 @using SchoolAssignments.Models

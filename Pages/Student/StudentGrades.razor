@@ -1,4 +1,6 @@
 ﻿@page "/my-grades"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Student")]
 @using SchoolAssignments.Models
 @using SchoolAssignments.Services
 @inject ISubmissionService SubmissionService

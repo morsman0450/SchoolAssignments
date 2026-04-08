@@ -1,4 +1,6 @@
 ﻿@page "/admin/classes"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
 @using SchoolAssignments.Models
 @using SchoolAssignments.Services
 @inject IClassService ClassService

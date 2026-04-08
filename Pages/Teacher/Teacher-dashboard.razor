@@ -1,4 +1,6 @@
 ﻿@page "/teacher-dashboard"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Teacher,Admin")]
 @using System.Security.Claims
 @using SchoolAssignments.Models
 @using SchoolAssignments.Services
@@ -18,8 +20,8 @@
                 <NavLink class="btn btn-primary shadow-sm px-4 py-2 fw-bold" href="/create-activity">
                     <i class="bi bi-plus-lg me-2"></i>Nová aktivita
                 </NavLink>
-                <NavLink class="btn btn-white border shadow-sm px-4 py-2" href="/teacher-statistics">
-                    <i class="bi bi-bar-chart-fill text-secondary me-2"></i>Statistiky
+                <NavLink class="btn btn-white border shadow-sm px-4 py-2" href="/teacher-classes">
+                    <i class="bi bi-bar-chart-fill text-secondary me-2"></i>Přehled tříd
                 </NavLink>
             </div>
         </div>

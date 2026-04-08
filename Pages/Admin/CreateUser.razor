@@ -1,4 +1,6 @@
 ﻿@page "/create-user"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
 @using SchoolAssignments.ViewModels
 @using SchoolAssignments.Models
 @using SchoolAssignments.Services

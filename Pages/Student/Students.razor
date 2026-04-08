@@ -1,4 +1,6 @@
 ﻿@page "/students"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Teacher,Admin")]
 @using Microsoft.EntityFrameworkCore
 @using SchoolAssignments.Data
 @using SchoolAssignments.Models
@@ -38,7 +40,6 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // Načtení studentů s jejich třídami
         studentList = await DbContext.Users
             .Where(u => u.Role == UserRole.Student)
             .Include(u => u.StudentClasses)
